@@ -41,33 +41,6 @@ gallery_metadata_values() {
   ' -- "$1" 2>/dev/null
 }
 
-gallery_metadata_description() {
-  local description='' map_url latitude longitude
-  local description_value=$1 date camera lens exposure aperture iso focal_length
-  date=$2; camera=$3; lens=$4; exposure=$5; aperture=$6; iso=$7; focal_length=$8
-  local -a values=(
-    "Description:$description_value" "Date:$date" "Camera:$camera" "Lens:$lens"
-    "Exposure:$exposure" "Aperture:$aperture" "ISO:$iso" "Focal length:$focal_length"
-  )
-  local field label value
-
-  description=''
-  for field in "${values[@]}"; do
-    label=${field%%:*}
-    value=${field#*:}
-    [[ -n "$value" ]] || continue
-    description+="<div><strong>$(gallery_html_escape "$label"):</strong> $(gallery_html_escape "$value")</div>"
-  done
-
-  latitude=$9; longitude=${10}
-  if [[ -n "$latitude" && -n "$longitude" ]]; then
-    map_url="https://www.openstreetmap.org/?mlat=$(gallery_url_escape_path "$latitude")&mlon=$(gallery_url_escape_path "$longitude")#map=15/$latitude/$longitude"
-    description+="<div><a href=\"$(gallery_html_escape "$map_url")\" target=\"_blank\" rel=\"noopener\">View map</a></div>"
-  fi
-
-  printf '%s' "$description"
-}
-
 gallery_metadata_location() {
   local latitude=$1 longitude=$2
   [[ -n "$latitude" && -n "$longitude" ]] || return 0
@@ -130,7 +103,7 @@ gallery_find_child_albums() {
 gallery_render_media_item() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 output_dir=$6 item_index=$7
   local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url
-  local title description exif_location exif_model exif_time exif_focal_length exif_fstop exif_iso exif_exposure viewer_url
+  local title exif_location exif_model exif_time exif_focal_length exif_fstop exif_iso exif_exposure viewer_url
   local -a metadata_values=()
 
   relative=${source#"$album_dir"}; relative=${relative#/}
@@ -144,7 +117,6 @@ gallery_render_media_item() {
   title=${relative##*/}; title=${title%.*}
 
   metadata_path="$metadata_dir/$album_rel/$relative.json"
-  description=''
   exif_location=''
   exif_model=''
   exif_time=''
@@ -154,11 +126,6 @@ gallery_render_media_item() {
   exif_exposure=''
   if [[ -f "$metadata_path" ]]; then
     mapfile -t metadata_values < <(gallery_metadata_values "$metadata_path")
-    description=$(gallery_metadata_description \
-      "${metadata_values[0]:-}" "${metadata_values[1]:-}" "${metadata_values[2]:-}" \
-      "${metadata_values[3]:-}" "${metadata_values[4]:-}" "${metadata_values[5]:-}" \
-      "${metadata_values[6]:-}" "${metadata_values[7]:-}" "${metadata_values[8]:-}" \
-      "${metadata_values[9]:-}")
     exif_location=$(gallery_metadata_location "${metadata_values[8]:-}" "${metadata_values[9]:-}")
     exif_model=${metadata_values[2]:-}
     exif_time=${metadata_values[1]:-}
@@ -176,16 +143,7 @@ gallery_render_media_item() {
   fi
 
   (( item_index > 0 )) && printf ','
-  if [[ -n "$description" ]]; then
-    gallery_print_template item-with-description.html \
-      "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-      "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")" \
-      "$(gallery_js_escape "$exif_model")" "$(gallery_js_escape "$exif_time")" \
-      "$(gallery_js_escape "$exif_focal_length")" "$(gallery_js_escape "$exif_fstop")" \
-      "$(gallery_js_escape "$exif_iso")" "$(gallery_js_escape "$exif_exposure")" \
-      "$(gallery_js_escape "$exif_location")"
-  elif [[ -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || -n "$exif_focal_length" || \
+  if [[ -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || -n "$exif_focal_length" || \
           -n "$exif_fstop" || -n "$exif_iso" || -n "$exif_exposure" ]]; then
     gallery_print_template item-with-metadata.html \
       "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
