@@ -28,6 +28,15 @@ to override those defaults.
 
 Keep the passwords in `photina.conf` private.
 
+To limit guest access, add album paths to `GUEST_ALBUMS`. Nested album paths
+are supported, for example:
+
+```bash
+GUEST_ALBUMS=(
+  "Greece/2026-08-01 - Σπήλαιο Πετραλώνων"
+)
+```
+
 ## Generate the gallery
 
 When media is added or removed, run:

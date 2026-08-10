@@ -33,8 +33,36 @@ __GUEST_ALLOWED_THUMBNAILS__
 		file_server
 	}
 
-	handle /* {
-		root * "__OUTPUT_DIR__"
+	@admin_root {
+		expression `{http.auth.user.id} == "admin" && {http.request.uri.path} == "/"`
+	}
+	redir @admin_root /admin/ 302
+
+	@guest_root {
+		expression `{http.auth.user.id} == "guest" && {http.request.uri.path} == "/"`
+	}
+	redir @guest_root /guest/ 302
+
+	redir /admin /admin/ 308
+	redir /guest /guest/ 308
+
+	@admin_gallery {
+		expression `{http.auth.user.id} == "admin"`
+		path /admin/*
+	}
+	handle @admin_gallery {
+		uri strip_prefix /admin
+		root * "__ADMIN_OUTPUT_DIR__"
+		file_server
+	}
+
+	@guest_gallery {
+		expression `{http.auth.user.id} == "guest"`
+		path /guest/*
+	}
+	handle @guest_gallery {
+		uri strip_prefix /guest
+		root * "__GUEST_OUTPUT_DIR__"
 		file_server
 	}
 

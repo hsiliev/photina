@@ -47,10 +47,14 @@ metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
 output_dir=$(realpath -m -- "$OUTPUT_DIR")
 thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
+admin_output_dir="$output_dir/admin"
+guest_output_dir="$output_dir/guest"
 
 printf 'Configured directories:\n'
 printf '  ALBUMS_DIR: %s\n' "$albums_dir"
 printf '  OUTPUT_DIR: %s\n' "$output_dir"
+printf '  ADMIN_OUTPUT_DIR: %s\n' "$admin_output_dir"
+printf '  GUEST_OUTPUT_DIR: %s\n' "$guest_output_dir"
 printf '  THUMBNAILS_DIR: %s\n' "$thumbs_dir"
 printf '  METADATA_DIR: %s\n' "$metadata_dir"
 printf '  CADDYFILE: %s\n' "$caddyfile"
@@ -66,13 +70,17 @@ command -v caddy >/dev/null || die "caddy is required to hash passwords and upda
 command -v sudo >/dev/null || die "sudo is required to set ownership and permissions on $caddyfile"
 command -v systemctl >/dev/null || die 'systemctl is required to reload caddy'
 
-# shellcheck source=lib/gallery.sh
-source "$script_dir/lib/gallery.sh"
+# shellcheck source=lib/gallery/main.sh
+source "$script_dir/lib/gallery/main.sh"
 # shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
 
-generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode"
-generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$output_dir" "$thumbs_dir" \
+generate_gallery "$script_dir" "$albums_dir" "$admin_output_dir" \
+  "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode"
+generate_gallery "$script_dir" "$albums_dir" "$guest_output_dir" \
+  "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode" \
+  "${GUEST_ALBUMS[@]}"
+generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$admin_output_dir" "$guest_output_dir" "$thumbs_dir" \
   "$caddy_host" "$caddy_port" "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
 sudo chown caddy:caddy -- "$caddyfile"
 sudo chmod 644 -- "$caddyfile"

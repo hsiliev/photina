@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 
 generate_caddyfile() {
-  local script_dir=$1 caddyfile=$2 albums_dir=$3 output_dir=$4 thumbs_dir=$5
-  local caddy_host=$6 caddy_port=$7 admin_password=$8 guest_password=$9
+  local script_dir=$1 caddyfile=$2 albums_dir=$3 admin_output_dir=$4 guest_output_dir=$5 thumbs_dir=$6
+  local caddy_host=$7 caddy_port=$8 admin_password=$9 guest_password=${10}
   local admin_password_hash guest_password_hash caddyfile_tmp album escaped_album
-  local output_parent thumbs_parent caddy_template guest_media_block guest_thumbnails_block
+  local thumbs_parent caddy_template guest_media_block guest_thumbnails_block
   local existing_config managed_block merged_config managed_start managed_end
-  shift 9
+  shift 10
   local -a guest_albums=("$@")
 
   admin_password_hash=$(caddy hash-password --plaintext "$admin_password")
   guest_password_hash=$(caddy hash-password --plaintext "$guest_password")
-  output_parent=$(dirname -- "$output_dir")
   thumbs_parent=$(dirname -- "$thumbs_dir")
 
   mkdir -p -- "$(dirname -- "$caddyfile")"
@@ -38,8 +37,8 @@ generate_caddyfile() {
   caddy_template=${caddy_template//__GUEST_ALLOWED_MEDIA__/$guest_media_block}
   caddy_template=${caddy_template//__GUEST_ALLOWED_THUMBNAILS__/$guest_thumbnails_block}
   caddy_template=${caddy_template//__ALBUMS_DIR__/$albums_dir}
-  caddy_template=${caddy_template//__OUTPUT_DIR__/$output_dir}
-  caddy_template=${caddy_template//__OUTPUT_PARENT__/$output_parent}
+  caddy_template=${caddy_template//__ADMIN_OUTPUT_DIR__/$admin_output_dir}
+  caddy_template=${caddy_template//__GUEST_OUTPUT_DIR__/$guest_output_dir}
   caddy_template=${caddy_template//__THUMBNAILS_PARENT__/$thumbs_parent}
   caddy_template=${caddy_template//__CADDY_HOST__/$caddy_host}
   caddy_template=${caddy_template//__CADDY_PORT__/$caddy_port}
