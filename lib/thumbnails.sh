@@ -35,7 +35,7 @@ thumbnail_find_media() {
   else
     extensions=("${VIDEO_EXTENSIONS[@]}")
   fi
-  find_args=(-P "$directory" -type f '(')
+  find_args=(-P "$directory" -mindepth 1 -type f '(')
   local extension first=1
   for extension in "${extensions[@]}"; do
     (( first )) || find_args+=(-o)
@@ -94,7 +94,9 @@ thumbnail_make() {
 
 thumbnail_process_item() {
   local source=$1 album_path=$2 album_name=$3 thumbs_dir=$4 thumbnail_size=$5 image_tool=$6 relative medium_size thumbnail
+  [[ -n "$source" && -f "$source" ]] || return 0
   relative=${source#"$album_path"}; relative=${relative#/}
+  [[ -n "$relative" ]] || return 0
   thumbnail="$thumbs_dir/$album_name/$relative.webp"
   medium_size=$7
   if thumbnail_needs_web_video "$source"; then
@@ -116,7 +118,7 @@ thumbnail_batch_album() {
     thumbnail_find_media "$album_path" video
   fi |
     if ! xargs -0 -r -n 1 -P "$parallel_jobs" bash -c '
-      thumbnail_process_item "$8" "$1" "$2" "$3" "$4" "$5" "$6" "$7"
+      thumbnail_process_item "$7" "$1" "$2" "$3" "$4" "$5" "$6"
     ' _ "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$image_tool" "$medium_size"; then
     return 1
   fi
