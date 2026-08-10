@@ -286,18 +286,29 @@ generate_gallery() {
       printf 'Generating album fragment: %s ...\n' "$album_name"
       gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
         "$output_dir" "$fragment_dir"
-      local preview_source preview_relative preview_url= child_urls=
+      local preview_child preview_child_name preview_source preview_relative preview_url= child_urls=
       while IFS= read -r -d '' preview_source; do
         preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
         preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
         break
       done < <(gallery_find_album_cover "$album_path")
       if [[ -z "$preview_url" ]]; then
-        while IFS= read -r -d '' preview_source; do
-          preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
-          preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
-          break
-        done < <(gallery_find_first_media "$album_path")
+        while IFS= read -r -d '' preview_child; do
+          preview_child_name=${preview_child%/}; preview_child_name=${preview_child_name##*/}
+          while IFS= read -r -d '' preview_source; do
+            preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
+            preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
+            break
+          done < <(gallery_find_album_cover "$preview_child")
+          if [[ -z "$preview_url" ]]; then
+            while IFS= read -r -d '' preview_source; do
+              preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
+              preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
+              break
+            done < <(gallery_find_first_media "$preview_child")
+          fi
+          [[ -n "$preview_url" ]] && break
+        done < <(gallery_find_child_albums "$album_path")
       fi
       child_urls=
       while IFS= read -r -d '' child; do
