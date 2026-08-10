@@ -26,6 +26,11 @@ Thumbnails can be updated independently with:
 ./update-thumbnails.sh
 ```
 
+The update script also grants Caddy read/traverse access to the gallery
+directories using standard permissions. This makes the gallery readable by
+local users as well; use filesystem ACLs or group permissions instead if that
+is not acceptable.
+
 To regenerate every thumbnail, including existing ones, run:
 
 ```bash
