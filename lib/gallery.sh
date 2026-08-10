@@ -159,14 +159,12 @@ generate_gallery() {
   gallery_template_dir="$script_dir/templates/gallery"
 
   echo "Generating gallery in $output_dir"
-  mkdir -p -- "$(dirname -- "$output_dir")"
-  backup_dir=$(mktemp -d "$(dirname -- "$output_dir")/.photina-backup.XXXXXX")
+  mkdir -p -- "$output_dir"
+  backup_dir=$(mktemp -d "$output_dir/.photina-backup.XXXXXX")
   echo "Backing up existing gallery files to $backup_dir"
-  if [[ -d "$output_dir" ]]; then
-    while IFS= read -r -d '' old_entry; do
-      mv -- "$old_entry" "$backup_dir/"
-    done < <(find -P "$output_dir" -mindepth 1 -maxdepth 1 -print0)
-  fi
+  while IFS= read -r -d '' old_entry; do
+    mv -- "$old_entry" "$backup_dir/"
+  done < <(find -P "$output_dir" -mindepth 1 -maxdepth 1 ! -path "$backup_dir" -print0)
   mkdir -p -- "$output_dir/assets"
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
