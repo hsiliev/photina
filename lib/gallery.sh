@@ -267,7 +267,10 @@ gallery_write_nested_fragments() {
     child_name=${child%/}; child_name=${child_name##*/}
     child_rel="$album_rel/$child_name"
     fragment_path="$fragment_dir/$child_rel.html"
+    printf 'Generating album fragment: %s ' "$child_rel"
+    gallery_image_count=0
     if [[ -f "$fragment_path" ]]; then
+      echo ' skipped'
       gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" \
         "$output_dir" "$fragment_dir"
       continue
@@ -276,6 +279,7 @@ gallery_write_nested_fragments() {
     fragment_tmp=$(mktemp "$(dirname -- "$fragment_path")/.fragment-XXXXXX")
     gallery_render_album "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
+    printf '\n'
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" \
       "$output_dir" "$fragment_dir"
@@ -302,7 +306,6 @@ generate_gallery() {
     direct_media=()
     while IFS= read -r -d '' source; do direct_media+=("$source"); done < <(gallery_find_media "$album_path")
     if ((${#direct_media[@]} == 0)); then
-      echo ' parent only'
       gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
         "$output_dir" "$fragment_dir"
       local preview_source preview_relative preview_url= child_urls=
