@@ -9,6 +9,7 @@ grant_caddy_access() {
   [[ -d "$output_dir" ]] && access_paths+=("$output_dir")
 
   for path in "${access_paths[@]}"; do
+    echo "  $path"
     current=$path
     while [[ "$current" != / ]]; do
       sudo chmod a+x -- "$current"

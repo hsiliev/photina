@@ -13,7 +13,7 @@ config_mode=$((0$config_mode))
 (( (config_mode & 077) == 0 )) || warn "$config_file must be private; run chmod 600 '$config_file'"
 
 GUEST_ALBUMS=()
-# shellcheck source=/dev/null
+# shellcheck source=photina.conf
 source "$config_file"
 
 usage() {
@@ -55,9 +55,9 @@ command -v realpath >/dev/null || die "realpath is required"
 command -v caddy >/dev/null || die "caddy is required to hash passwords and update $caddyfile"
 command -v sudo >/dev/null || die "sudo is required to set ownership and permissions on $caddyfile"
 
-# shellcheck source=/dev/null
+# shellcheck source=lib/gallery.sh
 source "$script_dir/lib/gallery.sh"
-# shellcheck source=/dev/null
+# shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
 
 generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$thumbnail_size"

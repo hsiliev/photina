@@ -11,7 +11,7 @@ config_mode=$(stat -c '%a' -- "$config_file") || die "cannot read permissions fo
 config_mode=$((0$config_mode))
 (( (config_mode & 077) == 0 )) || warn "$config_file must be private; run chmod 600 '$config_file'"
 
-# shellcheck source=/dev/null
+# shellcheck source=photina.conf
 source "$config_file"
 
 force=0
@@ -35,9 +35,9 @@ command -v sudo >/dev/null || die 'sudo is required to grant Caddy access'
 
 output_dir=$(realpath -m -- "${OUTPUT_DIR:-/mnt/gallery/dist}")
 
-# shellcheck source=/dev/null
+# shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
-# shellcheck source=/dev/null
+# shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
-update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$force"
 grant_caddy_access "$albums_dir" "$thumbs_dir" "$output_dir"
+update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$force"
