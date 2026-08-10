@@ -31,6 +31,11 @@ directory at the same relative location when deploying, because the HTML
 references it directly. The page loads nanogallery2 and jQuery from their
 CDNs.
 
+Thumbnail generation can be interrupted and resumed. Completed thumbnails
+remain at their final `.jpg` paths and are skipped on subsequent runs;
+in-progress thumbnails use temporary suffixes until they are complete. New
+thumbnails are generated in parallel using the available CPU cores.
+
 For the default `/mnt/gallery` layout, the included `Caddyfile` serves the
 gallery at `http://HOST/dist/`, maps its media URLs to
 `/mnt/gallery/photos`, and redirects the site root there. Start Caddy from
