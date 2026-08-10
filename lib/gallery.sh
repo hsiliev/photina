@@ -188,6 +188,10 @@ gallery_render_album() {
           "$(gallery_js_escape "$title")"
       fi
       item_index=$((item_index + 1))
+      gallery_image_count=$((gallery_image_count + 1))
+      if (( gallery_image_count % 10 == 0 )); then
+        printf '.' >&3
+      fi
     done
     gallery_print_template items-end.html
   fi
@@ -226,10 +230,12 @@ generate_gallery() {
   while IFS= read -r -d '' album_path; do
     album_index=$((album_index + 1))
     album_name=${album_path%/}; album_name=${album_name##*/}
-    echo "Generating album fragment: $album_name"
+    printf 'Generating album fragment: %s ' "$album_name"
+    gallery_image_count=0
     fragment_tmp=$(mktemp "$fragment_dir/.album-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
-      "$thumbnail_size" "$thumbnail_display_mode" >"$fragment_tmp"
+      "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
+    printf '\n'
     mv -f -- "$fragment_tmp" "$fragment_dir/album-$album_index.html"
     [[ -n "$album_list" ]] && album_list+=,
     album_list+=$(printf '{"url":"albums/album-%s.html"}' "$album_index")
