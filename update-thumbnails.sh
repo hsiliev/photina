@@ -15,11 +15,7 @@ config_mode=$((0$config_mode))
 # shellcheck disable=SC1091
 source "$config_file"
 
-force=0
-if [[ $# -gt 0 ]]; then
-  [[ $# -eq 1 && $1 == --force ]] || die 'usage: update-thumbnails.sh [--force]'
-  force=1
-fi
+[[ $# -eq 0 ]] || die 'usage: update-thumbnails.sh'
 
 [[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
 [[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
@@ -67,4 +63,4 @@ check_caddy_access() {
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
 check_caddy_access
-update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$medium_size" "$force"
+update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$medium_size"

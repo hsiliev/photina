@@ -44,13 +44,30 @@ Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
 parallel.
 
-Each image can be downloaded in its original form.
+### Recreate generated data
 
-`update-gallery.sh` creates the gallery and updates the Caddy configuration,
-then reloads Caddy.
+Check `photina.conf` before deleting anything and make sure these paths contain generated data only.
 
-The generated page loads each top-level album from a separate HTML fragment;
-nested albums stay within their parent fragment.
+To recreate all thumbnails and metadata, delete the configured thumbnail and metadata directories before updating:
+
+```bash
+rm -rf -- /mnt/gallery/thumbnails /mnt/gallery/metadata
+./update-thumbnails.sh
+```
+
+To recreate one album, delete its matching generated subdirectories instead:
+
+```bash
+rm -rf -- /mnt/gallery/thumbnails/ALBUM_NAME /mnt/gallery/metadata/ALBUM_NAME
+./update-thumbnails.sh
+```
+
+To recreate the gallery, delete the configured output directory before updating it:
+
+```bash
+rm -rf -- /mnt/gallery/dist
+./update-gallery.sh
+```
 
 ## Gallery behavior
 
