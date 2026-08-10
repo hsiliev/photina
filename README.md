@@ -7,17 +7,40 @@ Image thumbnails are created with ImageMagick and video thumbnails with
 albums directory.
 
 ```bash
-# Uses /mnt/gallery/albums, /mnt/gallery/dist, and /mnt/gallery/thumbnails
+# Uses /mnt/gallery/photos, /mnt/gallery/dist, and /mnt/gallery/thumbnails
 ./generate-gallery.sh
 
 # Or override the defaults positionally
 ./generate-gallery.sh /photos/albums ./gallery-site /photos/gallery-thumbnails
 ```
 
-The generated `gallery-site/index.html` and `gallery-site/media` can be served
-by any static web server. Keep the thumbnail directory at the same relative
-location when deploying, because the HTML references it directly. The page
-loads nanogallery2 and jQuery from their CDNs.
+The default directories and thumbnail dimensions are configured in
+`photina.conf` with `ALBUMS_DIR`, `OUTPUT_DIR`, `THUMBNAILS_DIR`, and
+`THUMBNAIL_SIZE`. It also controls Caddy generation through `CADDYFILE`,
+`ADMIN_PASSWORD`, `GUEST_PASSWORD`, and the quoted `GUEST_ALBUMS` Bash array.
+Passwords are hashed through Caddy when the gallery is generated. Keep
+`photina.conf` private. Positional arguments override the configured
+directories. Set `PHOTINA_CONFIG` to use a different config file.
 
-Required commands: `bash`, `find`, `realpath`, ImageMagick (`magick` or
-`convert`), and `ffmpegthumbnailer`.
+The generated Caddy configuration is merged into the configured `CADDYFILE`
+between `PHOTINA MANAGED` markers. Existing configuration outside those
+markers is preserved across runs.
+
+The generated `gallery-site/index.html` and `gallery-site/assets` can be served
+by any static web server. Original media remains in the albums directory and
+thumbnails remain in the separate thumbnail directory. Keep the thumbnail
+directory at the same relative location when deploying, because the HTML
+references it directly. The page loads nanogallery2 and jQuery from their
+CDNs.
+
+For the default `/mnt/gallery` layout, the included `Caddyfile` serves the
+gallery at `http://HOST/dist/`, maps its media URLs to
+`/mnt/gallery/photos`, and redirects the site root there. Start Caddy from
+this directory with:
+
+```bash
+caddy run --config ./Caddyfile
+```
+
+Required commands: `bash`, `find`, `realpath`, `caddy`, ImageMagick (`magick`
+or `convert`), and `ffmpegthumbnailer`.

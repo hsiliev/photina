@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photo gallery</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nanogallery2/3.0.5/css/nanogallery2.min.css">
+  <style>body{margin:0;padding:2rem;font:16px system-ui,sans-serif;background:#f5f5f5;color:#222}main{max-width:1400px;margin:auto}.album{margin:2rem 0 3rem}h1{font-weight:500}h2{font-weight:400}</style>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nanogallery2/3.0.5/jquery.nanogallery2.min.js"></script>
+</head>
+<body><main><h1>Photo gallery</h1>
+__GALLERY_ITEMS__
+</main></body>
+</html>

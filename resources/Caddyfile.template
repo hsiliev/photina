@@ -1,0 +1,40 @@
+:80 {
+	@site_root path /
+	redir @site_root /dist/ 302
+
+	basic_auth {
+		admin __ADMIN_PASSWORD_HASH__
+		guest __GUEST_PASSWORD_HASH__
+	}
+
+__GUEST_ALLOWED_MEDIA__
+__GUEST_ALLOWED_THUMBNAILS__
+	@guest_denied_media {
+		expression `{http.auth.user.id} == "guest"`
+		path /dist/media/*
+	}
+	respond @guest_denied_media 403
+
+	handle_path /dist/media/* {
+		root * "__ALBUMS_DIR__"
+		file_server
+	}
+
+	@guest_denied_thumbnails {
+		expression `{http.auth.user.id} == "guest"`
+		path /thumbnails/*
+	}
+	respond @guest_denied_thumbnails 403
+
+	handle /dist/* {
+		root * "__OUTPUT_PARENT__"
+		file_server
+	}
+
+	handle /thumbnails/* {
+		root * "__THUMBNAILS_PARENT__"
+		file_server
+	}
+
+	respond 404
+}
