@@ -10,10 +10,16 @@ gallery_album_preview_url() {
 
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
-  local album_name source child child_name preview_source preview_url gallery_id item_index child_count
+  local album_name source child child_name preview_source preview_url gallery_id item_index child_count thumbnail_width thumbnail_height
   local -a sources=() preview_sources=()
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
+  thumbnail_width=$thumbnail_size
+  thumbnail_height=$thumbnail_size
+  case "$thumbnail_display_mode" in
+    cascading) thumbnail_height=auto ;;
+    justified) thumbnail_width=auto ;;
+  esac
   gallery_image_count=0
   if gallery_album_content_is_allowed "$album_rel"; then
     while IFS= read -r -d '' source; do sources+=("$source"); done < <(gallery_find_media_by_date "$album_dir" "$album_rel" "$metadata_dir")
@@ -47,7 +53,7 @@ gallery_render_album() {
     gallery_next_id=$((gallery_next_id + 1))
     gallery_id="gallery-$gallery_next_id"
     gallery_print_template items-start.html "$gallery_id" "$gallery_id" \
-      "$(gallery_js_escape "$thumbnail_display_mode")" "$thumbnail_size" "$thumbnail_size"
+      "$thumbnail_width" "$thumbnail_height"
     item_index=0
     for source in "${sources[@]}"; do
       gallery_render_media_item "$source" "$album_dir" "$album_rel" "$thumbs_dir" \
