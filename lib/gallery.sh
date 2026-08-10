@@ -289,7 +289,7 @@ generate_gallery() {
       local preview_child preview_child_name preview_source preview_relative preview_url= child_urls=
       while IFS= read -r -d '' preview_source; do
         preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
-        preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
+        preview_url="/thumbnails/$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
         break
       done < <(gallery_find_album_cover "$album_path")
       if [[ -z "$preview_url" ]]; then
@@ -297,13 +297,13 @@ generate_gallery() {
           preview_child_name=${preview_child%/}; preview_child_name=${preview_child_name##*/}
           while IFS= read -r -d '' preview_source; do
             preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
-            preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
+            preview_url="/thumbnails/$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
             break
           done < <(gallery_find_album_cover "$preview_child")
           if [[ -z "$preview_url" ]]; then
             while IFS= read -r -d '' preview_source; do
               preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
-              preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
+              preview_url="/thumbnails/$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
               break
             done < <(gallery_find_first_media "$preview_child")
           fi
