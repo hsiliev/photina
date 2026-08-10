@@ -34,6 +34,7 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 command -v find >/dev/null || die 'find is required'
 command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
+command -v ffmpeg >/dev/null || die 'ffmpeg is required to create browser-compatible videos'
 command -v sudo >/dev/null || die 'sudo is required to check Caddy access'
 
 output_dir=$(realpath -m -- "${OUTPUT_DIR:-/mnt/gallery/dist}")

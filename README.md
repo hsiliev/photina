@@ -46,12 +46,17 @@ parallel. To recreate every thumbnail:
 
 The gallery uses small thumbnails for the grid, medium images in the viewer,
 and the original media for full-resolution viewing and download. Generated
-thumbnail and medium assets use WebP format.
+thumbnail and medium assets use WebP format. Videos also get browser-friendly
+H.264/AAC MP4 playback copies; the original video remains available for
+download.
 
 Each image can be downloaded in its original form.
 
 `generate-gallery.sh` creates the gallery and updates the Caddy configuration,
 then reloads Caddy.
+
+The generated page loads each top-level album from a separate HTML fragment;
+nested albums stay within their parent fragment.
 
 ## Gallery behavior
 

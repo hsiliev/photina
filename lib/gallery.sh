@@ -30,6 +30,15 @@ gallery_is_video() {
   esac
 }
 
+gallery_print_template() {
+  local template_name=$1
+  shift
+  local template_content
+  template_content=$(<"$gallery_template_dir/$template_name")
+  # shellcheck disable=SC2059
+  printf "$template_content" "$@"
+}
+
 gallery_find_media() {
   local directory=$1 scope=${2:-direct} extension first=1
   local -a find_args=(-P "$directory")
@@ -54,7 +63,7 @@ gallery_find_album_cover() {
 
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 output_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
-  local album_name source relative thumb_path medium_path media_url medium_url thumb_url title child child_name
+  local album_name source relative thumb_path medium_path web_video_path media_url medium_url thumb_url title child child_name
   local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
   local -a sources=() preview_sources=()
 
@@ -77,25 +86,21 @@ gallery_render_album() {
     preview_url=$(realpath --relative-to="$output_dir" "$preview_thumb_path")
     preview_url=$(gallery_html_escape "$(gallery_url_escape_path "$preview_url")")
     if (( child_count > 0 )); then
-      printf '<details class="album"><summary class="album-parent"><img class="album-thumbnail" src="%s" alt=""><span class="album-parent-marker">&gt;</span><strong>%s</strong></summary>\n' \
-        "$preview_url" "$(gallery_html_escape "$album_name")"
+      gallery_print_template album-parent-preview.html "$preview_url" "$(gallery_html_escape "$album_name")"
     else
-      printf '<details class="album"><summary><img class="album-thumbnail" src="%s" alt=""><span>%s</span></summary>\n' \
-        "$preview_url" "$(gallery_html_escape "$album_name")"
+      gallery_print_template album-leaf-preview.html "$preview_url" "$(gallery_html_escape "$album_name")"
     fi
   else
     if (( child_count > 0 )); then
-      printf '<details class="album"><summary class="album-parent"><span class="album-parent-marker">&gt;</span><strong>%s</strong></summary>\n' \
-        "$(gallery_html_escape "$album_name")"
+      gallery_print_template album-parent.html "$(gallery_html_escape "$album_name")"
     else
-      printf '<details class="album"><summary><span>%s</span></summary>\n' "$(gallery_html_escape "$album_name")"
+      gallery_print_template album-leaf.html "$(gallery_html_escape "$album_name")"
     fi
   fi
   if ((${#sources[@]})); then
     gallery_next_id=$((gallery_next_id + 1))
     gallery_id="gallery-$gallery_next_id"
-    # shellcheck disable=SC2016
-    printf '<div id="%s"></div>\n<script>$("#%s").nanogallery2({thumbnailDisplayMode:"%s",thumbnailHeight:%s,thumbnailWidth:%s,thumbnailLabel:{display:false},thumbnailBorderHorizontalWidth:0,thumbnailBorderVerticalWidth:0,viewerTools:{topLeft:"label",topRight:"downloadButton,closeButton"},items:[' \
+    gallery_print_template items-start.html \
       "$gallery_id" "$gallery_id" "$(gallery_js_escape "$thumbnail_display_mode")" "$thumbnail_size" "$thumbnail_size"
     item_index=0
     for source in "${sources[@]}"; do
@@ -109,14 +114,18 @@ gallery_render_album() {
       thumb_url=$(gallery_url_escape_path "$thumb_url")
       title=${relative##*/}; title=${title%.*}
       viewer_url=$medium_url
-      gallery_is_video "$source" && viewer_url=$media_url
+      if gallery_is_video "$source"; then
+        web_video_path="${thumb_path%.webp}.web.mp4"
+        viewer_url=$(realpath --relative-to="$output_dir" "$web_video_path")
+        viewer_url=$(gallery_url_escape_path "$viewer_url")
+      fi
       (( item_index > 0 )) && printf ','
-      printf '{srct:"%s",src:"%s",srcMax:"%s",title:"%s"}' \
+      gallery_print_template item.html \
         "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
         "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$title")"
       item_index=$((item_index + 1))
     done
-    printf ']});</script>\n'
+    gallery_print_template items-end.html
   fi
 
   for child in "$album_dir"/*/; do
@@ -125,38 +134,43 @@ gallery_render_album() {
     gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode"
   done
-  printf '</details>\n'
+  gallery_print_template album-end.html
 }
 
 generate_gallery() {
   local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
-  local index_tmp index_template index_head index_tail album_path album_name
-  local album_found=0
+  local index_tmp index_template fragment_dir fragment_tmp album_path album_name album_index album_list
   gallery_next_id=0
+  gallery_template_dir="$script_dir/templates/gallery"
 
   echo "Generating gallery in $output_dir"
   mkdir -p -- "$output_dir/assets"
+  fragment_dir="$output_dir/albums"
+  mkdir -p -- "$fragment_dir"
+  find -P "$fragment_dir" -type f -name 'album-*.html' -delete
+  album_list=
+  album_index=0
+  shopt -s nullglob
+  for album_path in "$albums_dir"/*/; do
+    [[ -d "$album_path" ]] || continue
+    album_index=$((album_index + 1))
+    album_name=${album_path%/}; album_name=${album_name##*/}
+    fragment_tmp=$(mktemp "$fragment_dir/.album-XXXXXX")
+    gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$output_dir" \
+      "$thumbnail_size" "$thumbnail_display_mode" >"$fragment_tmp"
+    mv -f -- "$fragment_tmp" "$fragment_dir/album-$album_index.html"
+    [[ -n "$album_list" ]] && album_list+=,
+    album_list+=$(printf '{"url":"albums/album-%s.html"}' "$album_index")
+  done
+
   index_tmp=$(mktemp)
   trap 'rm -f -- "$index_tmp"' EXIT
   index_template=$(<"$script_dir/templates/index.html.template")
   index_template=${index_template//__THUMBNAIL_SIZE__/$thumbnail_size}
-  index_head=${index_template%%__GALLERY_ITEMS__*}
-  index_tail=${index_template#*__GALLERY_ITEMS__}
-  [[ "$index_head" != "$index_template" ]] || die 'gallery template is missing __GALLERY_ITEMS__'
+  index_template=${index_template//__ALBUM_LIST__/$album_list}
+  [[ "$index_template" != *'__ALBUM_LIST__'* ]] || die 'gallery template is missing __ALBUM_LIST__'
 
-  {
-    printf '%s' "$index_head"
-    shopt -s nullglob
-    for album_path in "$albums_dir"/*/; do
-      [[ -d "$album_path" ]] || continue
-      album_found=1
-      album_name=${album_path%/}; album_name=${album_name##*/}
-      gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$output_dir" \
-        "$thumbnail_size" "$thumbnail_display_mode"
-    done
-    (( album_found )) || printf '  <p>No albums found.</p>\n'
-    printf '%s' "$index_tail"
-  } >"$index_tmp"
+  printf '%s' "$index_template" >"$index_tmp"
 
   mv -f -- "$index_tmp" "$output_dir/index.html"
   trap - EXIT

@@ -5,6 +5,7 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 [[ -r /etc/os-release ]] || die 'cannot identify the operating system'
 # shellcheck source=/etc/os-release
+# shellcheck disable=SC1091
 source /etc/os-release
 [[ "${ID:-}" == ubuntu ]] || die 'this installer supports Ubuntu only'
 command -v sudo >/dev/null || die 'sudo is required'
@@ -15,7 +16,7 @@ sudo apt-get update
 
 echo 'Installing gallery dependencies'
 sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  bash findutils coreutils sudo imagemagick ffmpegthumbnailer curl gnupg \
+  bash findutils coreutils sudo imagemagick ffmpeg ffmpegthumbnailer curl gnupg \
   ca-certificates debian-keyring debian-archive-keyring apt-transport-https
 
 if ! apt-cache policy caddy | grep -q '^  Candidate: [^ (]'; then
