@@ -71,7 +71,7 @@ source "$script_dir/lib/gallery.sh"
 # shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
 
-generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode"
+generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode" "${PHOTINA_RECREATE:-0}"
 generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$output_dir" "$thumbs_dir" \
   "$caddy_host" "$caddy_port" "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
 sudo chown caddy:caddy -- "$caddyfile"

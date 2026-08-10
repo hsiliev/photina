@@ -246,25 +246,30 @@ gallery_render_album() {
 }
 
 gallery_write_nested_fragments() {
-  local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
+  local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6 force=$7
   local child child_name child_rel fragment_tmp fragment_path
 
   while IFS= read -r -d '' child; do
     child_name=${child%/}; child_name=${child_name##*/}
     child_rel="$album_rel/$child_name"
     fragment_path="$fragment_dir/$child_rel.html"
+    if [[ "$force" != 1 && -f "$fragment_path" ]]; then
+      gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" \
+        "$output_dir" "$fragment_dir" "$force"
+      continue
+    fi
     mkdir -p -- "$(dirname -- "$fragment_path")"
     fragment_tmp=$(mktemp "$(dirname -- "$fragment_path")/.fragment-XXXXXX")
     gallery_render_album "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" \
-      "$output_dir" "$fragment_dir"
+      "$output_dir" "$fragment_dir" "$force"
   done < <(gallery_find_child_albums "$album_dir")
 }
 
 generate_gallery() {
-  local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 metadata_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
+  local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 metadata_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7 force=${8:-0}
   local index_tmp index_template fragment_dir fragment_tmp fragment_path fragment_rel album_path album_name album_list
   local backup_dir old_entry
   gallery_next_id=0
@@ -274,16 +279,20 @@ generate_gallery() {
   mkdir -p -- "$output_dir"
   backup_dir="$output_dir/backup"
   [[ ! -e "$backup_dir" ]] || die "gallery backup directory already exists: $backup_dir"
-  mkdir -- "$backup_dir"
-  echo "Backing up existing gallery files to $backup_dir"
-  while IFS= read -r -d '' old_entry; do
-    mv -- "$old_entry" "$backup_dir/"
-  done < <(find -P "$output_dir" -mindepth 1 -maxdepth 1 ! -path "$backup_dir" -print0)
+  if (( force )); then
+    mkdir -- "$backup_dir"
+    echo "Backing up existing gallery files to $backup_dir"
+    while IFS= read -r -d '' old_entry; do
+      mv -- "$old_entry" "$backup_dir/"
+    done < <(find -P "$output_dir" -mindepth 1 -maxdepth 1 ! -path "$backup_dir" -print0)
+  fi
   mkdir -p -- "$output_dir/assets"
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
-  echo "Cleaning old album fragments in $fragment_dir"
-  find -P "$fragment_dir" -type f -name '*.html' -delete
+  if (( force )); then
+    echo "Cleaning old album fragments in $fragment_dir"
+    find -P "$fragment_dir" -type f -name '*.html' -delete
+  fi
   album_list=
   while IFS= read -r -d '' album_path; do
     album_name=${album_path%/}; album_name=${album_name##*/}
@@ -291,13 +300,21 @@ generate_gallery() {
     gallery_image_count=0
     fragment_rel="$album_name.html"
     fragment_path="$fragment_dir/$fragment_rel"
+    if [[ "$force" != 1 && -f "$fragment_path" ]]; then
+      echo ' skipped'
+      gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
+        "$output_dir" "$fragment_dir" "$force"
+      [[ -n "$album_list" ]] && album_list+=,
+      album_list+=$(printf '{"url":"albums/%s"}' "$(gallery_url_escape_path "$fragment_rel")")
+      continue
+    fi
     fragment_tmp=$(mktemp "$fragment_dir/.fragment-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
     printf '\n'
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
-      "$output_dir" "$fragment_dir"
+      "$output_dir" "$fragment_dir" "$force"
     [[ -n "$album_list" ]] && album_list+=,
     album_list+=$(printf '{"url":"albums/%s"}' "$(gallery_url_escape_path "$fragment_rel")")
   done < <(gallery_find_child_albums "$albums_dir")
@@ -314,8 +331,10 @@ generate_gallery() {
 
   mv -f -- "$index_tmp" "$output_dir/index.html"
   trap - EXIT
-  rm -rf -- "$backup_dir"
-  echo "Removed gallery backup $backup_dir"
+  if (( force )); then
+    rm -rf -- "$backup_dir"
+    echo "Removed gallery backup $backup_dir"
+  fi
   echo 'Gallery generation complete'
   printf 'Gallery written to %s\n' "$output_dir/index.html"
 }

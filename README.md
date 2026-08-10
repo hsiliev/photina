@@ -34,7 +34,14 @@ When media is added or removed, run:
 
 ```bash
 ./update-thumbnails.sh
-./generate-gallery.sh
+./update-gallery.sh
+```
+
+`update-gallery.sh` keeps existing gallery fragments and generates only missing
+ones. To rebuild every fragment:
+
+```bash
+./recreate-gallery.sh
 ```
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
@@ -55,7 +62,7 @@ Each image can be downloaded in its original form.
 When available, the viewer shows EXIF camera details and a link to the image
 location on OpenStreetMap. Metadata is stored as JSON under `METADATA_DIR`.
 
-`generate-gallery.sh` creates the gallery and updates the Caddy configuration,
+`update-gallery.sh` creates the gallery and updates the Caddy configuration,
 then reloads Caddy.
 
 The generated page loads each top-level album from a separate HTML fragment;
