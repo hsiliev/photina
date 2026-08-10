@@ -48,7 +48,7 @@ thumbnail_find_media() {
 
 thumbnail_make() {
   local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4
-  local display_name=${5:-${source##*/}} medium_size=$6
+  local display_name=${5:-${source##*/}} medium_size=$6 display_mode=$7
   local thumbnail_tmp=${thumbnail%.webp}.generating.webp
   local medium=${thumbnail%.webp}_medium.webp
   local medium_tmp=${medium%.webp}.generating.webp
@@ -61,26 +61,40 @@ thumbnail_make() {
   if thumbnail_is_video "$source"; then
     progress+=' ➤ 🎞️ video frame'
     ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
-    "$image_tool" "$video_frame_tmp" \
-      \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-        -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-        -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-      \( +clone -thumbnail "${medium_size}x${medium_size}>" \
-        -background white -alpha remove -alpha off -strip -quality 86 -write "$medium_tmp" +delete \) \
-      null:
+    if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
+      "$image_tool" "$video_frame_tmp" \
+        \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+        \( +clone -thumbnail "${medium_size}x" -strip -quality 86 -write "$medium_tmp" +delete \) \
+        null:
+    else
+      "$image_tool" "$video_frame_tmp" \
+        \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
+          -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
+          -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+        \( +clone -thumbnail "${medium_size}x${medium_size}>" \
+          -background white -alpha remove -alpha off -strip -quality 86 -write "$medium_tmp" +delete \) \
+        null:
+    fi
     if thumbnail_needs_web_video "$source"; then
       progress+=' ➤ 🎬 web video'
       ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
         >/dev/null 2>&1
     fi
   else
-    "$image_tool" "$source" -auto-orient \
-      \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-        -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-        -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-      \( +clone -thumbnail "${medium_size}x${medium_size}>" \
-        -strip -quality 90 -write "$medium_tmp" +delete \) \
-      null:
+    if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
+      "$image_tool" "$source" -auto-orient \
+        \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+        \( +clone -thumbnail "${medium_size}x" -strip -quality 90 -write "$medium_tmp" +delete \) \
+        null:
+    else
+      "$image_tool" "$source" -auto-orient \
+        \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
+          -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
+          -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+        \( +clone -thumbnail "${medium_size}x${medium_size}>" \
+          -strip -quality 90 -write "$medium_tmp" +delete \) \
+        null:
+    fi
   fi
 
   mv -f -- "$thumbnail_tmp" "$thumbnail"
@@ -93,23 +107,24 @@ thumbnail_make() {
 }
 
 thumbnail_process_item() {
-  local source=$1 album_path=$2 album_name=$3 thumbs_dir=$4 thumbnail_size=$5 image_tool=$6 relative medium_size thumbnail
+  local source=$1 album_path=$2 album_name=$3 thumbs_dir=$4 thumbnail_size=$5 image_tool=$6 relative medium_size display_mode thumbnail
   [[ -n "$source" && -f "$source" ]] || return 0
   relative=${source#"$album_path"}; relative=${relative#/}
   [[ -n "$relative" ]] || return 0
   thumbnail="$thumbs_dir/$album_name/$relative.webp"
   medium_size=$7
+  display_mode=$8
   if thumbnail_needs_web_video "$source"; then
     [[ ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" || ! -f "${thumbnail%.webp}.web.mp4" ]] || return 0
   else
     [[ ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" ]] || return 0
   fi
-  thumbnail_make "$source" "$thumbnail" "$thumbnail_size" "$image_tool" "$relative" "$medium_size"
+  thumbnail_make "$source" "$thumbnail" "$thumbnail_size" "$image_tool" "$relative" "$medium_size" "$display_mode"
 }
 
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
-  local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8
+  local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9
   export -f thumbnail_is_video thumbnail_needs_web_video thumbnail_make thumbnail_process_item
 
   if [[ "$kind" == image ]]; then
@@ -118,8 +133,8 @@ thumbnail_batch_album() {
     thumbnail_find_media "$album_path" video
   fi |
     if ! xargs -0 -r -n 1 -P "$parallel_jobs" bash -c '
-      thumbnail_process_item "$7" "$1" "$2" "$3" "$4" "$5" "$6"
-    ' _ "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$image_tool" "$medium_size"; then
+      thumbnail_process_item "$8" "$1" "$2" "$3" "$4" "$5" "$6" "$7"
+    ' _ "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$image_tool" "$medium_size" "$display_mode"; then
     return 1
   fi
 }
@@ -162,7 +177,7 @@ thumbnail_batch_metadata() {
 }
 
 update_thumbnails() {
-  local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5
+  local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
   local album_path album_name source relative thumb_path medium_path web_video_path
   local thumbnail stale_relative
@@ -202,8 +217,8 @@ update_thumbnails() {
         expected_thumbnails["$web_video_path"]=1
       fi
     done < <(thumbnail_find_media "$album_path" image; thumbnail_find_media "$album_path" video | sort -z)
-    if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image \
-      && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video; then
+    if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$display_mode" \
+      && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$display_mode"; then
       thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" || thumbnail_failed=1
     else
       thumbnail_failed=1
