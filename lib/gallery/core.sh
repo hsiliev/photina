@@ -94,6 +94,31 @@ gallery_find_first_media() {
   gallery_find_media "$1" all | head -z -n 1
 }
 
+gallery_media_date() {
+  local metadata_path=$1
+  [[ -f "$metadata_path" ]] || return 0
+  gallery_metadata_values "$metadata_path" | sed -n '2p'
+}
+
+gallery_find_media_by_date() {
+  local album_dir=$1 album_rel=$2 metadata_dir=$3
+  local source relative metadata_path taken_at sort_key
+
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_dir"}; relative=${relative#/}
+    metadata_path="$metadata_dir/$album_rel/$relative.json"
+    taken_at=$(gallery_media_date "$metadata_path")
+    if [[ "$taken_at" =~ ^[0-9]{4}:[0-9]{2}:[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2} ]]; then
+      sort_key=$taken_at
+    else
+      sort_key='9999:99:99 99:99:99'
+    fi
+    printf '%s\t%s\0' "$sort_key" "$source"
+  done < <(gallery_find_media "$album_dir") | sort -z -t $'\t' -k1,1 -k2,2 | while IFS= read -r -d '' source; do
+    printf '%s\0' "${source#*$'\t'}"
+  done
+}
+
 gallery_find_album_cover() {
   find -P "$1" -mindepth 1 -maxdepth 1 -type f -iname 'album.jpg' -print0 | sort -z | head -z -n 1
 }

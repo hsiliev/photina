@@ -39,15 +39,49 @@ GUEST_ALBUMS=(
 
 ## Generate the gallery
 
-When media is added or removed, run:
+When media is added or removed, run both gallery generators:
 
 ```bash
 ./update-thumbnails.sh
-./update-gallery.sh
+./generate-admin-gallery.sh
+./generate-guest-gallery.sh
 ```
 
-`update-gallery.sh` keeps existing gallery fragments and generates only missing
-ones.
+To generate only one gallery, use:
+
+```bash
+./generate-admin-gallery.sh
+./generate-guest-gallery.sh
+```
+
+## Admin and guest galleries
+
+Photina generates two independent gallery outputs:
+
+- Admin: `OUTPUT_DIR/admin`, available at `/admin/`
+- Guest: `OUTPUT_DIR/guest`, available at `/guest/`
+
+Opening the site root redirects an authenticated admin to `/admin/` and an
+authenticated guest to `/guest/`. Guests only see the albums listed in
+`GUEST_ALBUMS` in `photina.conf`; nested paths are supported:
+
+```bash
+GUEST_ALBUMS=(
+  "Greece/2026-08-01 - Σπήλαιο Πετραλώνων"
+)
+```
+
+Generate or delete one output independently when needed:
+
+```bash
+./generate-admin-gallery.sh
+./delete-admin-gallery.sh
+
+./generate-guest-gallery.sh
+./delete-guest-gallery.sh
+```
+
+The gallery generators keep existing fragments and generate only missing ones.
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
@@ -72,17 +106,22 @@ To recreate one album, delete its matching generated subdirectories instead:
 ./update-thumbnails.sh
 ```
 
-To recreate the gallery, delete the configured output directory before updating it:
+To recreate only one gallery:
 
 ```bash
-./delete-gallery.sh
-./update-gallery.sh
+./delete-admin-gallery.sh
+./generate-admin-gallery.sh
+
+./delete-guest-gallery.sh
+./generate-guest-gallery.sh
 ```
 
 ## Gallery behavior
 
 The gallery starts with the album list. Select an album to view its media;
 nested folders appear as nested albums. 
+Images within an album are sorted from oldest to newest using their
+`DateTimeOriginal` EXIF value. Images without a usable date appear last.
 
 ### Album thumbnails
 To choose an album preview, place an image named `album.jpg` directly in that 

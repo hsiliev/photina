@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 config_file=${PHOTINA_CONFIG:-$script_dir/photina.conf}
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -19,11 +19,15 @@ source "$config_file"
 
 usage() {
   cat <<'EOF'
-Usage: generate-gallery.sh
+Usage: generate.sh admin|guest
 
-Check the configuration in photina.conf
+Generate the selected gallery output.
 EOF
 }
+
+[[ $# -eq 1 ]] || { usage >&2; exit 2; }
+gallery_target=$1
+[[ "$gallery_target" == admin || "$gallery_target" == guest ]] || { usage >&2; exit 2; }
 
 thumbnail_size=${THUMBNAIL_SIZE:-250}
 [[ "$thumbnail_size" =~ ^[1-9][0-9]*$ ]] || die "THUMBNAIL_SIZE must be a positive integer"
@@ -38,7 +42,6 @@ caddy_port=${PORT:-80}
 [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD must be set in $config_file"
 [[ -n "${GUEST_PASSWORD:-}" ]] || die "GUEST_PASSWORD must be set in $config_file"
 
-[[ $# -eq 0 ]] || { usage >&2; exit 2; }
 [[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
 [[ -n "${OUTPUT_DIR:-}" ]] || die "OUTPUT_DIR must be set in $config_file"
 [[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
@@ -75,11 +78,15 @@ source "$script_dir/lib/gallery/main.sh"
 # shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
 
-generate_gallery "$script_dir" "$albums_dir" "$admin_output_dir" \
-  "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode"
-generate_gallery "$script_dir" "$albums_dir" "$guest_output_dir" \
-  "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode" \
-  "${GUEST_ALBUMS[@]}"
+if [[ "$gallery_target" == admin ]]; then
+  generate_gallery "$script_dir" "$albums_dir" "$admin_output_dir" \
+    "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode"
+fi
+if [[ "$gallery_target" == guest ]]; then
+  generate_gallery "$script_dir" "$albums_dir" "$guest_output_dir" \
+    "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode" \
+    "${GUEST_ALBUMS[@]}"
+fi
 generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$admin_output_dir" "$guest_output_dir" "$thumbs_dir" \
   "$caddy_host" "$caddy_port" "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
 sudo chown caddy:caddy -- "$caddyfile"
