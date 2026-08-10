@@ -62,6 +62,32 @@ gallery_metadata_description() {
   printf '%s' "$description"
 }
 
+gallery_metadata_location() {
+  local metadata=$1 latitude longitude
+  latitude=$(gallery_metadata_value GPSLatitude "$metadata")
+  longitude=$(gallery_metadata_value GPSLongitude "$metadata")
+  [[ -n "$latitude" && -n "$longitude" ]] || return 0
+  printf '%s, %s' "$latitude" "$longitude"
+}
+
+gallery_metadata_custom_data() {
+  local metadata=$1
+  jq -c '
+    .[0] as $m |
+    def value($tag): ([ $m | to_entries[] |
+      select(.key == $tag or (.key | endswith(":" + $tag))) | .value ][0] // null);
+    {
+      camera: value("Model"),
+      date: value("DateTimeOriginal"),
+      lens: value("LensModel"),
+      exposure: value("ExposureTime"),
+      aperture: value("FNumber"),
+      iso: value("ISO"),
+      focalLength: value("FocalLength")
+    } | with_entries(select(.value != null))
+  ' -- "$metadata"
+}
+
 gallery_is_video() {
   local extension=${1##*.}
   extension=${extension,,}
@@ -117,7 +143,7 @@ gallery_find_child_albums() {
 
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
-  local album_name source relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url title description child child_name
+  local album_name source relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url title description exif_location custom_data child child_name
   local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
   local -a sources=() preview_sources=()
 
@@ -168,7 +194,13 @@ gallery_render_album() {
       title=${relative##*/}; title=${title%.*}
       metadata_path="$metadata_dir/$album_rel/$relative.json"
       description=''
-      [[ -f "$metadata_path" ]] && description=$(gallery_metadata_description "$metadata_path")
+      exif_location=''
+      custom_data='{}'
+      if [[ -f "$metadata_path" ]]; then
+        description=$(gallery_metadata_description "$metadata_path")
+        exif_location=$(gallery_metadata_location "$metadata_path")
+        custom_data=$(gallery_metadata_custom_data "$metadata_path")
+      fi
       viewer_url=$medium_url
       if gallery_needs_web_video "$source"; then
         web_video_path="${thumb_path%.webp}.web.mp4"
@@ -180,7 +212,13 @@ gallery_render_album() {
         gallery_print_template item-with-description.html \
           "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
           "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-          "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")"
+          "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")" \
+          "$(gallery_js_escape "$exif_location")" "$custom_data"
+      elif [[ -n "$exif_location" || "$custom_data" != '{}' ]]; then
+        gallery_print_template item-with-metadata.html \
+          "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
+          "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+          "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_location")" "$custom_data"
       else
         gallery_print_template item.html \
           "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \

@@ -21,11 +21,14 @@ if (photinaAlbums.length === 0) {
   Promise.all(photinaAlbums.map(async ({url}) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Unable to load ${url}: ${response.status}`);
-    const fragment = document.createRange().createContextualFragment(await response.text());
-    const scripts = [...fragment.querySelectorAll('script')];
-    photinaContainer.append(fragment);
-    scripts.forEach(script => Function(script.textContent)());
-  })).catch(error => {
+    return document.createRange().createContextualFragment(await response.text());
+  })).then(fragments => {
+    fragments.forEach(fragment => {
+      const scripts = [...fragment.querySelectorAll('script')];
+      photinaContainer.append(fragment);
+      scripts.forEach(script => Function(script.textContent)());
+    });
+  }).catch(error => {
     photinaContainer.textContent = `Unable to load the gallery: ${error.message}`;
   });
 }

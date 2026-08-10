@@ -37,6 +37,7 @@ command -v find >/dev/null || die 'find is required'
 command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
 command -v exiftool >/dev/null || die 'exiftool is required to write metadata'
+command -v jq >/dev/null || die 'jq is required to minify metadata'
 command -v ffmpeg >/dev/null || die 'ffmpeg is required to create browser-compatible videos'
 command -v sudo >/dev/null || die 'sudo is required to check Caddy access'
 

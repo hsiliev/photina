@@ -22,7 +22,7 @@ thumbnail_write_metadata() {
   local source=$1 metadata=$2
   local metadata_tmp=${metadata%.json}.generating.json
   mkdir -p -- "$(dirname -- "$metadata")"
-  exiftool -j -G1 -n -- "$source" >"$metadata_tmp"
+  exiftool -j -G1 -n -- "$source" | jq -c '.' >"$metadata_tmp"
   mv -f -- "$metadata_tmp" "$metadata"
 }
 
