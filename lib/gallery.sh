@@ -305,12 +305,30 @@ generate_gallery() {
       echo ' parent only'
       gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
         "$output_dir" "$fragment_dir"
+      local preview_source preview_relative preview_url= child_urls=
+      while IFS= read -r -d '' preview_source; do
+        preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
+        preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
+        break
+      done < <(gallery_find_album_cover "$album_path")
+      if [[ -z "$preview_url" ]]; then
+        while IFS= read -r -d '' preview_source; do
+          preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
+          preview_url="thumbnails/$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
+          break
+        done < <(gallery_find_first_media "$album_path")
+      fi
+      child_urls=
       while IFS= read -r -d '' child; do
         child_name=${child%/}; child_name=${child_name##*/}
-        [[ -n "$album_list" ]] && album_list+=,
-        album_list+=$(printf '{"url":"albums/%s/%s.html"}' \
-          "$(gallery_url_escape_path "$album_name")" "$(gallery_url_escape_path "$child_name")")
+        [[ -n "$child_urls" ]] && child_urls+=,
+        child_urls+=$(printf '{"url":"albums/%s/%s.html"}' \
+          "$(gallery_js_escape "$(gallery_url_escape_path "$album_name")")" \
+          "$(gallery_js_escape "$(gallery_url_escape_path "$child_name")")")
       done < <(gallery_find_child_albums "$album_path")
+      [[ -n "$album_list" ]] && album_list+=,
+      album_list+=$(printf '{"title":"%s","thumbnail":"%s","children":[%s]}' \
+        "$(gallery_js_escape "$album_name")" "$(gallery_js_escape "$preview_url")" "$child_urls")
       continue
     fi
     fragment_rel="$album_name.html"
