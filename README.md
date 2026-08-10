@@ -37,23 +37,6 @@ GUEST_ALBUMS=(
 )
 ```
 
-## Generate the gallery
-
-When media is added or removed, run both gallery generators:
-
-```bash
-./update-thumbnails.sh
-./generate-admin-gallery.sh
-./generate-guest-gallery.sh
-```
-
-To generate only one gallery, use:
-
-```bash
-./generate-admin-gallery.sh
-./generate-guest-gallery.sh
-```
-
 ## Admin and guest galleries
 
 Photina generates two independent gallery outputs:
@@ -73,14 +56,11 @@ GUEST_ALBUMS=(
 
 ```
 
-Generate or delete one output independently when needed:
+Regenerate one output independently when needed:
 
 ```bash
 ./generate-admin-gallery.sh
-./delete-admin-gallery.sh
-
 ./generate-guest-gallery.sh
-./delete-guest-gallery.sh
 ```
 
 The gallery generators keep existing gallery fragments and generate only
@@ -90,7 +70,25 @@ Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
 parallel.
 
-### Recreate generated data
+## Update the gallery
+
+When media is added or removed, run both gallery generators:
+
+```bash
+./update-thumbnails.sh
+./generate-admin-gallery.sh
+./generate-guest-gallery.sh
+```
+
+To generate only one gallery, use:
+
+```bash
+./generate-admin-gallery.sh
+./generate-guest-gallery.sh
+```
+
+
+## Recreate generated data
 
 Check `photina.conf` before deleting anything and make sure the configured
 paths contain generated data only.
