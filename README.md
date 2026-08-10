@@ -20,6 +20,21 @@ The default directories and thumbnail dimensions are configured in
 Passwords are hashed through Caddy when the gallery is generated. Keep
 `photina.conf` private. Set `PHOTINA_CONFIG` to use a different config file.
 
+Thumbnails can be updated independently with:
+
+```bash
+./update-thumbnails.sh
+```
+
+To regenerate every thumbnail, including existing ones, run:
+
+```bash
+./recreate-thumbnails.sh
+```
+
+`generate-gallery.sh` runs the thumbnail update automatically before writing
+the gallery and Caddy configuration.
+
 The generated Caddy configuration is merged into the configured `CADDYFILE`
 between `PHOTINA MANAGED` markers. Existing configuration outside those
 markers is preserved across runs.

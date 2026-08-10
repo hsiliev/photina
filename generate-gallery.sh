@@ -55,10 +55,13 @@ command -v ffmpegthumbnailer >/dev/null || die "ffmpegthumbnailer is required"
 command -v caddy >/dev/null || die "caddy is required to hash passwords and update $caddyfile"
 
 # shellcheck source=/dev/null
+source "$script_dir/lib/thumbnails.sh"
+# shellcheck source=/dev/null
 source "$script_dir/lib/gallery.sh"
 # shellcheck source=/dev/null
 source "$script_dir/lib/caddy.sh"
 
+update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size"
 generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$thumbnail_size"
 generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$output_dir" "$thumbs_dir" \
   "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
