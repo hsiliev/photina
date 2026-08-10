@@ -4,10 +4,11 @@ __CADDY_HOST__:__CADDY_PORT__, www.__CADDY_HOST__:__CADDY_PORT__ {
 		format console
 	}
 
-	basic_auth {
-		admin __ADMIN_PASSWORD_HASH__
-		guest __GUEST_PASSWORD_HASH__
-	}
+	route {
+		basic_auth {
+			admin __ADMIN_PASSWORD_HASH__
+			guest __GUEST_PASSWORD_HASH__
+		}
 
 __GUEST_ALLOWED_MEDIA__
 __GUEST_ALLOWED_THUMBNAILS__
@@ -34,12 +35,14 @@ __GUEST_ALLOWED_THUMBNAILS__
 	}
 
 	@admin_root {
-		expression `{http.auth.user.id} == "admin" && {http.request.uri.path} == "/"`
+		expression `{http.auth.user.id} == "admin"`
+		path /
 	}
 	redir @admin_root /admin/ 302
 
 	@guest_root {
-		expression `{http.auth.user.id} == "guest" && {http.request.uri.path} == "/"`
+		expression `{http.auth.user.id} == "guest"`
+		path /
 	}
 	redir @guest_root /guest/ 302
 
@@ -66,5 +69,6 @@ __GUEST_ALLOWED_THUMBNAILS__
 		file_server
 	}
 
-	respond 404
+		respond 404
+	}
 }
