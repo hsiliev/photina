@@ -68,15 +68,6 @@ gallery_metadata_description() {
   printf '%s' "$description"
 }
 
-gallery_metadata_custom_data() {
-  local camera=$1 date=$2 lens=$3 exposure=$4 aperture=$5 iso=$6 focal_length=$7
-  jq -cn --arg camera "$camera" --arg date "$date" --arg lens "$lens" \
-    --arg exposure "$exposure" --arg aperture "$aperture" --arg iso "$iso" \
-    --arg focalLength "$focal_length" \
-    '{camera:$camera,date:$date,lens:$lens,exposure:$exposure,aperture:$aperture,iso:$iso,focalLength:$focalLength}
-     | with_entries(select(.value != ""))'
-}
-
 gallery_metadata_location() {
   local latitude=$1 longitude=$2
   [[ -n "$latitude" && -n "$longitude" ]] || return 0
@@ -139,7 +130,7 @@ gallery_find_child_albums() {
 gallery_render_media_item() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 output_dir=$6 item_index=$7
   local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url
-  local title description exif_location custom_data viewer_url
+  local title description exif_location exif_model exif_time exif_focal_length exif_fstop exif_iso exif_exposure viewer_url
   local -a metadata_values=()
 
   relative=${source#"$album_dir"}; relative=${relative#/}
@@ -155,7 +146,12 @@ gallery_render_media_item() {
   metadata_path="$metadata_dir/$album_rel/$relative.json"
   description=''
   exif_location=''
-  custom_data='{}'
+  exif_model=''
+  exif_time=''
+  exif_focal_length=''
+  exif_fstop=''
+  exif_iso=''
+  exif_exposure=''
   if [[ -f "$metadata_path" ]]; then
     mapfile -t metadata_values < <(gallery_metadata_values "$metadata_path")
     description=$(gallery_metadata_description \
@@ -164,10 +160,12 @@ gallery_render_media_item() {
       "${metadata_values[6]:-}" "${metadata_values[7]:-}" "${metadata_values[8]:-}" \
       "${metadata_values[9]:-}")
     exif_location=$(gallery_metadata_location "${metadata_values[8]:-}" "${metadata_values[9]:-}")
-    custom_data=$(gallery_metadata_custom_data \
-      "${metadata_values[2]:-}" "${metadata_values[1]:-}" "${metadata_values[3]:-}" \
-      "${metadata_values[4]:-}" "${metadata_values[5]:-}" "${metadata_values[6]:-}" \
-      "${metadata_values[7]:-}")
+    exif_model=${metadata_values[2]:-}
+    exif_time=${metadata_values[1]:-}
+    exif_focal_length=${metadata_values[7]:-}
+    exif_fstop=${metadata_values[5]:-}
+    exif_iso=${metadata_values[6]:-}
+    exif_exposure=${metadata_values[4]:-}
   fi
 
   viewer_url=$medium_url
@@ -183,17 +181,27 @@ gallery_render_media_item() {
       "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
       "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
       "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")" \
-      "$(gallery_js_escape "$exif_location")" "$custom_data"
-  elif [[ -n "$exif_location" || "$custom_data" != '{}' ]]; then
+      "$(gallery_js_escape "$exif_model")" "$(gallery_js_escape "$exif_time")" \
+      "$(gallery_js_escape "$exif_focal_length")" "$(gallery_js_escape "$exif_fstop")" \
+      "$(gallery_js_escape "$exif_iso")" "$(gallery_js_escape "$exif_exposure")" \
+      "$(gallery_js_escape "$exif_location")"
+  elif [[ -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || -n "$exif_focal_length" || \
+          -n "$exif_fstop" || -n "$exif_iso" || -n "$exif_exposure" ]]; then
     gallery_print_template item-with-metadata.html \
       "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
       "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_location")" "$custom_data"
+      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_model")" \
+      "$(gallery_js_escape "$exif_time")" "$(gallery_js_escape "$exif_focal_length")" \
+      "$(gallery_js_escape "$exif_fstop")" "$(gallery_js_escape "$exif_iso")" \
+      "$(gallery_js_escape "$exif_exposure")" "$(gallery_js_escape "$exif_location")"
   else
     gallery_print_template item.html \
       "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
       "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-      "$(gallery_js_escape "$title")"
+      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_model")" \
+      "$(gallery_js_escape "$exif_time")" "$(gallery_js_escape "$exif_focal_length")" \
+      "$(gallery_js_escape "$exif_fstop")" "$(gallery_js_escape "$exif_iso")" \
+      "$(gallery_js_escape "$exif_exposure")" "$(gallery_js_escape "$exif_location")"
   fi
 
   gallery_image_count=$((gallery_image_count + 1))
@@ -267,7 +275,7 @@ gallery_write_nested_fragments() {
     child_name=${child%/}; child_name=${child_name##*/}
     child_rel="$album_rel/$child_name"
     fragment_path="$fragment_dir/$child_rel.html"
-    printf 'Generating album fragment: %s ' "$child_rel"
+    printf 'Generating album fragment: %s ...' "$child_rel"
     gallery_image_count=0
     if [[ -f "$fragment_path" ]]; then
       echo ' skipped'
@@ -301,11 +309,11 @@ generate_gallery() {
   album_list=
   while IFS= read -r -d '' album_path; do
     album_name=${album_path%/}; album_name=${album_name##*/}
-    printf 'Generating album fragment: %s ' "$album_name"
     gallery_image_count=0
     direct_media=()
     while IFS= read -r -d '' source; do direct_media+=("$source"); done < <(gallery_find_media "$album_path")
     if ((${#direct_media[@]} == 0)); then
+      printf 'Generating album fragment: %s ...\n' "$album_name"
       gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
         "$output_dir" "$fragment_dir"
       local preview_source preview_relative preview_url= child_urls=
@@ -334,6 +342,7 @@ generate_gallery() {
         "$(gallery_js_escape "$album_name")" "$(gallery_js_escape "$preview_url")" "$child_urls")
       continue
     fi
+    printf 'Generating album fragment: %s ...' "$album_name"
     fragment_rel="$album_name.html"
     fragment_path="$fragment_dir/$fragment_rel"
     if [[ -f "$fragment_path" ]]; then
