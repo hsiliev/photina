@@ -32,12 +32,14 @@ To regenerate every thumbnail, including existing ones, run:
 ./recreate-thumbnails.sh
 ```
 
-`generate-gallery.sh` runs the thumbnail update automatically before writing
-the gallery and Caddy configuration.
+Run `update-thumbnails.sh` before `generate-gallery.sh` when new media is
+added. `generate-gallery.sh` only writes the gallery and Caddy configuration.
 
 The generated Caddy configuration is merged into the configured `CADDYFILE`
 between `PHOTINA MANAGED` markers. Existing configuration outside those
 markers is preserved across runs.
+
+Caddy access logs are written to `/var/log/caddy/access.log`.
 
 The generated `gallery-site/index.html` and `gallery-site/assets` can be served
 by any static web server. Original media remains in the albums directory and
@@ -60,5 +62,5 @@ this directory with:
 caddy run --config ./Caddyfile
 ```
 
-Required commands: `bash`, `find`, `realpath`, `caddy`, ImageMagick (`magick`
-or `convert`), and `ffmpegthumbnailer`.
+Required commands: `bash`, `find`, `realpath`, `sudo`, `caddy`, ImageMagick
+(`magick` or `convert`), and `ffmpegthumbnailer`.

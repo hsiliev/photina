@@ -8,12 +8,12 @@ thumbnail_is_video() {
 }
 
 thumbnail_make() {
-  local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4
+  local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4 display_name=${5:-${source##*/}}
   local thumbnail_tmp=${thumbnail%.jpg}.generating.jpg
   local processed_tmp=${thumbnail%.jpg}.generated.jpg
   local ready_tmp
 
-  printf '\t%s\n' "$source"
+  printf '\t%s\n' "$display_name"
   mkdir -p -- "$(dirname -- "$thumbnail")"
   if thumbnail_is_video "$source"; then
     ffmpegthumbnailer -i "$source" -o "$thumbnail_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
@@ -66,7 +66,7 @@ update_thumbnails() {
       relative=${source#"$album_path"}; relative=${relative#/}
       thumb_path="$thumbs_dir/$album_name/$relative.jpg"
       [[ "$force" == 1 || ! -f "$thumb_path" ]] || continue
-      thumbnail_make "$source" "$thumb_path" "$thumbnail_size" "$image_tool" &
+      thumbnail_make "$source" "$thumb_path" "$thumbnail_size" "$image_tool" "$relative" &
       thumbnail_pids+=("$!")
       while (( ${#thumbnail_pids[@]} >= parallel_jobs )); do
         if ! wait "${thumbnail_pids[0]}"; then thumbnail_failed=1; fi

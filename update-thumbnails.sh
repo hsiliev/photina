@@ -30,7 +30,31 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 command -v find >/dev/null || die 'find is required'
 command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
+command -v setfacl >/dev/null || die 'setfacl is required to grant Caddy access'
+command -v sudo >/dev/null || die 'sudo is required to grant Caddy access'
+
+grant_caddy_access() {
+  local path current
+  local -a access_paths=("$albums_dir" "$thumbs_dir")
+  [[ -d "$output_dir" ]] && access_paths+=("$output_dir")
+
+  current=$(dirname -- "$albums_dir")
+  while [[ "$current" != / ]]; do
+    sudo setfacl -m u:caddy:--x -- "$current"
+    current=$(dirname -- "$current")
+  done
+
+  for path in "${access_paths[@]}"; do
+    sudo setfacl -R -m u:caddy:rX -- "$path"
+    while IFS= read -r -d '' current; do
+      sudo setfacl -m d:u:caddy:rX -- "$current"
+    done < <(find "$path" -type d -print0)
+  done
+}
+
+output_dir=$(realpath -m -- "${OUTPUT_DIR:-/mnt/gallery/dist}")
 
 # shellcheck source=/dev/null
 source "$script_dir/lib/thumbnails.sh"
 update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$force"
+grant_caddy_access
