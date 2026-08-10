@@ -136,11 +136,77 @@ gallery_find_child_albums() {
   find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0 | LC_ALL=C sort -z
 }
 
+gallery_render_media_item() {
+  local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 output_dir=$6 item_index=$7
+  local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url
+  local title description exif_location custom_data viewer_url
+  local -a metadata_values=()
+
+  relative=${source#"$album_dir"}; relative=${relative#/}
+  thumb_path="$thumbs_dir/$album_rel/$relative.webp"
+  medium_path="${thumb_path%.webp}_medium.webp"
+  media_url="media/$(gallery_url_escape_path "$album_rel/$relative")"
+  medium_url=$(realpath --relative-to="$output_dir" "$medium_path")
+  medium_url=$(gallery_url_escape_path "$medium_url")
+  thumb_url=$(realpath --relative-to="$output_dir" "$thumb_path")
+  thumb_url=$(gallery_url_escape_path "$thumb_url")
+  title=${relative##*/}; title=${title%.*}
+
+  metadata_path="$metadata_dir/$album_rel/$relative.json"
+  description=''
+  exif_location=''
+  custom_data='{}'
+  if [[ -f "$metadata_path" ]]; then
+    mapfile -t metadata_values < <(gallery_metadata_values "$metadata_path")
+    description=$(gallery_metadata_description \
+      "${metadata_values[0]:-}" "${metadata_values[1]:-}" "${metadata_values[2]:-}" \
+      "${metadata_values[3]:-}" "${metadata_values[4]:-}" "${metadata_values[5]:-}" \
+      "${metadata_values[6]:-}" "${metadata_values[7]:-}" "${metadata_values[8]:-}" \
+      "${metadata_values[9]:-}")
+    exif_location=$(gallery_metadata_location "${metadata_values[8]:-}" "${metadata_values[9]:-}")
+    custom_data=$(gallery_metadata_custom_data \
+      "${metadata_values[2]:-}" "${metadata_values[1]:-}" "${metadata_values[3]:-}" \
+      "${metadata_values[4]:-}" "${metadata_values[5]:-}" "${metadata_values[6]:-}" \
+      "${metadata_values[7]:-}")
+  fi
+
+  viewer_url=$medium_url
+  if gallery_needs_web_video "$source"; then
+    web_video_path="${thumb_path%.webp}.web.mp4"
+    viewer_url=$(realpath --relative-to="$output_dir" "$web_video_path")
+    viewer_url=$(gallery_url_escape_path "$viewer_url")
+  fi
+
+  (( item_index > 0 )) && printf ','
+  if [[ -n "$description" ]]; then
+    gallery_print_template item-with-description.html \
+      "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
+      "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")" \
+      "$(gallery_js_escape "$exif_location")" "$custom_data"
+  elif [[ -n "$exif_location" || "$custom_data" != '{}' ]]; then
+    gallery_print_template item-with-metadata.html \
+      "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
+      "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_location")" "$custom_data"
+  else
+    gallery_print_template item.html \
+      "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
+      "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+      "$(gallery_js_escape "$title")"
+  fi
+
+  gallery_image_count=$((gallery_image_count + 1))
+  if (( gallery_image_count % 10 == 0 )); then
+    printf '.' >&3
+  fi
+}
+
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
-  local album_name source relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url title description exif_location custom_data child child_name
-  local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
-  local -a sources=() preview_sources=() metadata_values=()
+  local album_name source child child_name
+  local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index child_count
+  local -a sources=() preview_sources=()
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
   while IFS= read -r -d '' source; do sources+=("$source"); done < <(gallery_find_media "$album_dir")
@@ -178,61 +244,9 @@ gallery_render_album() {
       "$gallery_id" "$gallery_id" "$(gallery_js_escape "$thumbnail_display_mode")" "$thumbnail_size" "$thumbnail_size"
     item_index=0
     for source in "${sources[@]}"; do
-      relative=${source#"$album_dir"}; relative=${relative#/}
-      thumb_path="$thumbs_dir/$album_rel/$relative.webp"
-      medium_path="${thumb_path%.webp}_medium.webp"
-      media_url="media/$(gallery_url_escape_path "$album_rel/$relative")"
-      medium_url=$(realpath --relative-to="$output_dir" "$medium_path")
-      medium_url=$(gallery_url_escape_path "$medium_url")
-      thumb_url=$(realpath --relative-to="$output_dir" "$thumb_path")
-      thumb_url=$(gallery_url_escape_path "$thumb_url")
-      title=${relative##*/}; title=${title%.*}
-      metadata_path="$metadata_dir/$album_rel/$relative.json"
-      description=''
-      exif_location=''
-      custom_data='{}'
-      if [[ -f "$metadata_path" ]]; then
-        mapfile -t metadata_values < <(gallery_metadata_values "$metadata_path")
-        description=$(gallery_metadata_description \
-          "${metadata_values[0]:-}" "${metadata_values[1]:-}" "${metadata_values[2]:-}" \
-          "${metadata_values[3]:-}" "${metadata_values[4]:-}" "${metadata_values[5]:-}" \
-          "${metadata_values[6]:-}" "${metadata_values[7]:-}" "${metadata_values[8]:-}" \
-          "${metadata_values[9]:-}")
-        exif_location=$(gallery_metadata_location "${metadata_values[8]:-}" "${metadata_values[9]:-}")
-        custom_data=$(gallery_metadata_custom_data \
-          "${metadata_values[2]:-}" "${metadata_values[1]:-}" "${metadata_values[3]:-}" \
-          "${metadata_values[4]:-}" "${metadata_values[5]:-}" "${metadata_values[6]:-}" \
-          "${metadata_values[7]:-}")
-      fi
-      viewer_url=$medium_url
-      if gallery_needs_web_video "$source"; then
-        web_video_path="${thumb_path%.webp}.web.mp4"
-        viewer_url=$(realpath --relative-to="$output_dir" "$web_video_path")
-        viewer_url=$(gallery_url_escape_path "$viewer_url")
-      fi
-      (( item_index > 0 )) && printf ','
-      if [[ -n "$description" ]]; then
-        gallery_print_template item-with-description.html \
-          "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-          "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-          "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")" \
-          "$(gallery_js_escape "$exif_location")" "$custom_data"
-      elif [[ -n "$exif_location" || "$custom_data" != '{}' ]]; then
-        gallery_print_template item-with-metadata.html \
-          "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-          "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-          "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_location")" "$custom_data"
-      else
-        gallery_print_template item.html \
-          "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-          "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-          "$(gallery_js_escape "$title")"
-      fi
+      gallery_render_media_item "$source" "$album_dir" "$album_rel" "$thumbs_dir" \
+        "$metadata_dir" "$output_dir" "$item_index"
       item_index=$((item_index + 1))
-      gallery_image_count=$((gallery_image_count + 1))
-      if (( gallery_image_count % 10 == 0 )); then
-        printf '.' >&3
-      fi
     done
     gallery_print_template items-end.html
   fi

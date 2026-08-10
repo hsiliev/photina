@@ -38,29 +38,13 @@ When media is added or removed, run:
 ```
 
 `update-gallery.sh` keeps existing gallery fragments and generates only missing
-ones. To rebuild every fragment:
-
-```bash
-./recreate-gallery.sh
-```
+ones.
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
-parallel. To recreate every thumbnail:
-
-```bash
-./recreate-thumbnails.sh
-```
-
-The gallery uses small thumbnails for the grid, medium images in the viewer,
-and the original media for full-resolution viewing and download. Generated
-thumbnail and medium assets use WebP format. Videos also get browser-friendly
-H.264/AAC MP4 playback copies; the original video remains available for
-download.
+parallel.
 
 Each image can be downloaded in its original form.
-When available, the viewer shows EXIF camera details and a link to the image
-location on OpenStreetMap. Metadata is stored as JSON under `METADATA_DIR`.
 
 `update-gallery.sh` creates the gallery and updates the Caddy configuration,
 then reloads Caddy.

@@ -69,14 +69,13 @@ thumbnail_make() {
   if thumbnail_is_video "$source"; then
     progress+=' ➤ 🎞️ video frame'
     ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
-    progress+=' ➤ 🖼️ thumbnail'
-    "$image_tool" "$video_frame_tmp" -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-      -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-      -alpha off -strip -quality 86 "$thumbnail_tmp"
-    progress+=' ➤ 🖼️ medium'
-    "$image_tool" "$video_frame_tmp" -thumbnail "${medium_size}x${medium_size}>" \
-      -background white -alpha remove -alpha off -strip -quality 86 "$medium_tmp"
-    progress+=' ➤ 🧾 exif'
+    "$image_tool" "$video_frame_tmp" \
+      \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
+        -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
+        -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+      \( +clone -thumbnail "${medium_size}x${medium_size}>" \
+        -background white -alpha remove -alpha off -strip -quality 86 -write "$medium_tmp" +delete \) \
+      null:
     thumbnail_write_metadata "$source" "$metadata"
     if thumbnail_needs_web_video "$source"; then
       progress+=' ➤ 🎬 web video'
@@ -84,14 +83,13 @@ thumbnail_make() {
         >/dev/null 2>&1
     fi
   else
-    progress+=' ➤ 🖼️ thumbnail'
-    "$image_tool" "$source" -auto-orient -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-      -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-      -alpha off -strip -quality 86 "$thumbnail_tmp"
-    progress+=' ➤ 🖼️ medium'
-    "$image_tool" "$source" -auto-orient -thumbnail "${medium_size}x${medium_size}>" \
-      -strip -quality 90 "$medium_tmp"
-    progress+=' ➤ 🧾 exif'
+    "$image_tool" "$source" -auto-orient \
+      \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
+        -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
+        -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+      \( +clone -thumbnail "${medium_size}x${medium_size}>" \
+        -strip -quality 90 -write "$medium_tmp" +delete \) \
+      null:
     thumbnail_write_metadata "$source" "$metadata"
   fi
 
@@ -117,7 +115,7 @@ thumbnail_process_item() {
     :
   else
     thumbnail_write_metadata "$source" "$metadata"
-    printf '\t%s ➤ 🧾 exif\n' "$relative"
+    printf '\t%s\n' "$relative"
     return 0
   fi
   if thumbnail_needs_web_video "$source"; then
