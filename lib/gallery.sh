@@ -55,7 +55,7 @@ gallery_find_album_cover() {
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 output_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
   local album_name source relative thumb_path medium_path media_url medium_url thumb_url title child child_name
-  local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url
+  local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
   local -a sources=() preview_sources=()
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
@@ -66,15 +66,30 @@ gallery_render_album() {
     while IFS= read -r -d '' source; do preview_sources+=("$source"); done < <(gallery_find_first_media "$album_dir")
   fi
   preview_source=${preview_sources[0]:-}
+  child_count=0
+  for child in "$album_dir"/*/; do
+    [[ -d "$child" ]] || continue
+    child_count=$((child_count + 1))
+  done
   if [[ -n "$preview_source" ]]; then
     preview_relative=${preview_source#"$album_dir"}; preview_relative=${preview_relative#/}
     preview_thumb_path="$thumbs_dir/$album_rel/$preview_relative.webp"
     preview_url=$(realpath --relative-to="$output_dir" "$preview_thumb_path")
     preview_url=$(gallery_html_escape "$(gallery_url_escape_path "$preview_url")")
-    printf '<details class="album"><summary><img class="album-thumbnail" src="%s" alt=""><span>%s</span></summary>\n' \
-      "$preview_url" "$(gallery_html_escape "$album_name")"
+    if (( child_count > 0 )); then
+      printf '<details class="album"><summary class="album-parent"><img class="album-thumbnail" src="%s" alt=""><span class="album-parent-marker">&gt;</span><strong>%s</strong></summary>\n' \
+        "$preview_url" "$(gallery_html_escape "$album_name")"
+    else
+      printf '<details class="album"><summary><img class="album-thumbnail" src="%s" alt=""><span>%s</span></summary>\n' \
+        "$preview_url" "$(gallery_html_escape "$album_name")"
+    fi
   else
-    printf '<details class="album"><summary><span>%s</span></summary>\n' "$(gallery_html_escape "$album_name")"
+    if (( child_count > 0 )); then
+      printf '<details class="album"><summary class="album-parent"><span class="album-parent-marker">&gt;</span><strong>%s</strong></summary>\n' \
+        "$(gallery_html_escape "$album_name")"
+    else
+      printf '<details class="album"><summary><span>%s</span></summary>\n' "$(gallery_html_escape "$album_name")"
+    fi
   fi
   if ((${#sources[@]})); then
     gallery_next_id=$((gallery_next_id + 1))

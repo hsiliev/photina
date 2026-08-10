@@ -19,11 +19,11 @@ ALBUMS_DIR=/mnt/gallery/albums
 OUTPUT_DIR=/mnt/gallery/dist
 THUMBNAILS_DIR=/mnt/gallery/thumbnails
 MEDIUM_SIZE=1600
-HOST=klepare.net
-PORT=1443
 ```
 
 Image and video extensions can also be adjusted in `photina.conf`.
+`HOST` and `PORT` default to `localhost` and `80`; set them in the environment
+to override those defaults.
 
 Keep the passwords in `photina.conf` private.
 
