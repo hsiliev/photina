@@ -83,7 +83,8 @@ Generate or delete one output independently when needed:
 ./delete-guest-gallery.sh
 ```
 
-The gallery generators keep existing fragments and generate only missing ones.
+The gallery generators keep existing gallery fragments and generate only
+missing ones.
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
