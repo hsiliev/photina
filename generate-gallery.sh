@@ -5,11 +5,12 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 config_file=${PHOTINA_CONFIG:-$script_dir/photina.conf}
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
 
 [[ -f "$config_file" ]] || die "configuration file does not exist: $config_file"
 config_mode=$(stat -c '%a' -- "$config_file") || die "cannot read permissions for $config_file"
 config_mode=$((0$config_mode))
-(( (config_mode & 077) == 0 )) || die "$config_file must be private; run chmod 600 '$config_file'"
+(( (config_mode & 077) == 0 )) || warn "$config_file must be private; run chmod 600 '$config_file'"
 
 GUEST_ALBUMS=()
 # shellcheck source=/dev/null
