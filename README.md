@@ -46,26 +46,27 @@ parallel.
 
 ### Recreate generated data
 
-Check `photina.conf` before deleting anything and make sure these paths contain generated data only.
+Check `photina.conf` before deleting anything and make sure the configured
+paths contain generated data only.
 
 To recreate all thumbnails and metadata, delete the configured thumbnail and metadata directories before updating:
 
 ```bash
-rm -rf -- /mnt/gallery/thumbnails /mnt/gallery/metadata
+./delete-all-thumbnails-and-metadata.sh
 ./update-thumbnails.sh
 ```
 
 To recreate one album, delete its matching generated subdirectories instead:
 
 ```bash
-rm -rf -- /mnt/gallery/thumbnails/ALBUM_NAME /mnt/gallery/metadata/ALBUM_NAME
+./delete-album-thumbnails-and-metadata.sh ALBUM_NAME
 ./update-thumbnails.sh
 ```
 
 To recreate the gallery, delete the configured output directory before updating it:
 
 ```bash
-rm -rf -- /mnt/gallery/dist
+./delete-gallery.sh
 ./update-gallery.sh
 ```
 

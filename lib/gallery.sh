@@ -284,7 +284,8 @@ gallery_write_nested_fragments() {
 
 generate_gallery() {
   local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 metadata_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
-  local index_tmp index_template fragment_dir fragment_tmp fragment_path fragment_rel album_path album_name album_list
+  local index_tmp index_template fragment_dir fragment_tmp fragment_path fragment_rel album_path album_name album_list child child_name source
+  local -a direct_media=()
   gallery_next_id=0
   gallery_template_dir="$script_dir/templates/gallery"
 
@@ -298,6 +299,20 @@ generate_gallery() {
     album_name=${album_path%/}; album_name=${album_name##*/}
     printf 'Generating album fragment: %s ' "$album_name"
     gallery_image_count=0
+    direct_media=()
+    while IFS= read -r -d '' source; do direct_media+=("$source"); done < <(gallery_find_media "$album_path")
+    if ((${#direct_media[@]} == 0)); then
+      echo ' parent only'
+      gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
+        "$output_dir" "$fragment_dir"
+      while IFS= read -r -d '' child; do
+        child_name=${child%/}; child_name=${child_name##*/}
+        [[ -n "$album_list" ]] && album_list+=,
+        album_list+=$(printf '{"url":"albums/%s/%s.html"}' \
+          "$(gallery_url_escape_path "$album_name")" "$(gallery_url_escape_path "$child_name")")
+      done < <(gallery_find_child_albums "$album_path")
+      continue
+    fi
     fragment_rel="$album_name.html"
     fragment_path="$fragment_dir/$fragment_rel"
     if [[ -f "$fragment_path" ]]; then
