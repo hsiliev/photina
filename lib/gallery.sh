@@ -105,7 +105,7 @@ gallery_find_child_albums() {
 gallery_render_media_item() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 output_dir=$6 item_index=$7
   local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url
-  local title description exif_location exif_model exif_time exif_lens exif_focal_length exif_fstop exif_iso exif_exposure exif_flash viewer_url
+  local title exif_location exif_model exif_time exif_lens exif_focal_length exif_fstop exif_iso exif_exposure exif_flash viewer_url
   local -a metadata_values=()
 
   relative=${source#"$album_dir"}; relative=${relative#/}
@@ -119,7 +119,6 @@ gallery_render_media_item() {
   title=${relative##*/}; title=${title%.*}
 
   metadata_path="$metadata_dir/$album_rel/$relative.json"
-  description=''
   exif_location=''
   exif_model=''
   exif_time=''
@@ -131,7 +130,6 @@ gallery_render_media_item() {
   exif_flash=''
   if [[ -f "$metadata_path" ]]; then
     mapfile -t metadata_values < <(gallery_metadata_values "$metadata_path")
-    description=${metadata_values[0]:-}
     exif_model=${metadata_values[3]:-}
     if [[ -n "${metadata_values[2]:-}" && "${metadata_values[2]}" != "$exif_model" ]]; then
       exif_model="${metadata_values[2]} $exif_model"
@@ -144,13 +142,6 @@ gallery_render_media_item() {
     exif_focal_length=${metadata_values[8]:-}
     exif_flash=${metadata_values[9]:-}
     exif_location=$(gallery_metadata_location "${metadata_values[10]:-}" "${metadata_values[11]:-}")
-    if [[ -n "$description" && -n "$exif_lens" ]]; then
-      description="Description: $description | Lens: $exif_lens"
-    elif [[ -n "$exif_lens" ]]; then
-      description="Lens: $exif_lens"
-    elif [[ -n "$description" ]]; then
-      description="Description: $description"
-    fi
   fi
 
   viewer_url=$medium_url
@@ -161,18 +152,18 @@ gallery_render_media_item() {
   fi
 
   (( item_index > 0 )) && printf ','
-  if [[ -n "$description" || -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || \
+  if [[ -n "$exif_lens" || -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || \
           -n "$exif_focal_length" || -n "$exif_fstop" || -n "$exif_iso" || \
           -n "$exif_exposure" || -n "$exif_flash" ]]; then
     gallery_print_template item-with-metadata.html \
       "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
       "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")" \
+      "$(gallery_js_escape "$title")" \
       "$(gallery_js_escape "$exif_model")" \
       "$(gallery_js_escape "$exif_time")" "$(gallery_js_escape "$exif_focal_length")" \
       "$(gallery_js_escape "$exif_fstop")" "$(gallery_js_escape "$exif_iso")" \
       "$(gallery_js_escape "$exif_exposure")" "$(gallery_js_escape "$exif_flash")" \
-      "$(gallery_js_escape "$exif_location")"
+      "$(gallery_js_escape "$exif_location")" "$(gallery_js_escape "$exif_lens")"
   else
     gallery_print_template item.html \
       "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
