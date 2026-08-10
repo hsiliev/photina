@@ -28,14 +28,16 @@ thumbnail_core_count() {
 }
 
 thumbnail_find_media() {
-  local directory=$1 kind=$2
+  local directory=$1 kind=$2 scope=${3:-direct}
   local -a extensions find_args
   if [[ "$kind" == image ]]; then
     extensions=("${IMAGE_EXTENSIONS[@]}")
   else
     extensions=("${VIDEO_EXTENSIONS[@]}")
   fi
-  find_args=(-P "$directory" -mindepth 1 -type f '(')
+  find_args=(-P "$directory")
+  [[ "$scope" == direct ]] && find_args+=(-mindepth 1 -maxdepth 1)
+  find_args+=(-type f '(')
   local extension first=1
   for extension in "${extensions[@]}"; do
     (( first )) || find_args+=(-o)
@@ -59,7 +61,6 @@ thumbnail_make() {
 
   mkdir -p -- "$(dirname -- "$thumbnail")"
   if thumbnail_is_video "$source"; then
-    progress+=' ➤ 🎞️ video frame'
     ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
     if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
       "$image_tool" "$video_frame_tmp" \
@@ -76,7 +77,6 @@ thumbnail_make() {
         null:
     fi
     if thumbnail_needs_web_video "$source"; then
-      progress+=' ➤ 🎬 web video'
       ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
         >/dev/null 2>&1
     fi
@@ -128,9 +128,9 @@ thumbnail_batch_album() {
   export -f thumbnail_is_video thumbnail_needs_web_video thumbnail_make thumbnail_process_item
 
   if [[ "$kind" == image ]]; then
-    thumbnail_find_media "$album_path" image
+    thumbnail_find_media "$album_path" image direct
   else
-    thumbnail_find_media "$album_path" video
+    thumbnail_find_media "$album_path" video direct
   fi |
     if ! xargs -0 -r -n 1 -P "$parallel_jobs" bash -c '
       thumbnail_process_item "$8" "$1" "$2" "$3" "$4" "$5" "$6" "$7"
@@ -150,21 +150,29 @@ thumbnail_batch_metadata() {
     if [[ ! -f "$metadata" ]]; then
       sources+=("$source")
     fi
-  done < <(thumbnail_find_media "$album_path" image; thumbnail_find_media "$album_path" video | sort -z)
+  done < <(thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct | sort -z)
 
-  ((${#sources[@]})) || return 0
+  if ((${#sources[@]} == 0)); then
+    printf '\tMetadata: no new files for %s\n' "$album_name"
+    return 0
+  fi
+  printf '\tMetadata: extracting EXIF from %d files in %s\n' "${#sources[@]}" "$album_name"
   mkdir -p -- "$metadata_dir/$album_name"
   batch_tmp=$(mktemp)
   if ! exiftool -j -G1 -n -- "${sources[@]}" >"$batch_tmp"; then
+    printf '\tMetadata: EXIF extraction failed for %s\n' "$album_name" >&2
     rm -f -- "$batch_tmp"
     return 1
   fi
+  printf '\tMetadata: EXIF extraction complete for %s\n' "$album_name"
   records_tmp=$(mktemp)
   if ! jq -jr '.[] | .SourceFile, "\u0000", (tojson), "\u0000"' -- "$batch_tmp" >"$records_tmp"; then
+    printf '\tMetadata: JSON conversion failed for %s\n' "$album_name" >&2
     rm -f -- "$batch_tmp" "$records_tmp"
     return 1
   fi
 
+  local metadata_count=0
   while IFS= read -r -d '' source && IFS= read -r -d '' record; do
     relative=${source#"$album_path"}; relative=${relative#/}
     metadata="$metadata_dir/$album_name/$relative.json"
@@ -172,16 +180,19 @@ thumbnail_batch_metadata() {
     mkdir -p -- "$(dirname -- "$metadata")"
     printf '[%s]\n' "$record" >"$metadata_tmp"
     mv -f -- "$metadata_tmp" "$metadata"
+    metadata_count=$((metadata_count + 1))
   done <"$records_tmp"
   rm -f -- "$batch_tmp" "$records_tmp"
+  printf '\tMetadata: wrote %d records for %s\n' "$metadata_count" "$album_name"
 }
 
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
-  local album_path album_name source relative thumb_path medium_path web_video_path
+  local root_album_path album_path album_name source relative thumb_path medium_path web_video_path
   local thumbnail stale_relative
   local metadata stale_metadata_relative
+  local found_media
   declare -A expected_thumbnails=() expected_metadata=()
 
   if command -v magick >/dev/null; then
@@ -201,28 +212,33 @@ update_thumbnails() {
   mkdir -p -- "$metadata_dir"
 
   shopt -s nullglob
-  for album_path in "$albums_dir"/*/; do
-    [[ -d "$album_path" ]] || continue
-    album_name=${album_path%/}; album_name=${album_name##*/}
-    echo "Scanning album: $album_name"
-    while IFS= read -r -d '' source; do
-      relative=${source#"$album_path"}; relative=${relative#/}
-      thumb_path="$thumbs_dir/$album_name/$relative.webp"
-      medium_path="${thumb_path%.webp}_medium.webp"
-      expected_thumbnails["$thumb_path"]=1
-      expected_thumbnails["$medium_path"]=1
-      expected_metadata["$metadata_dir/$album_name/$relative.json"]=1
-      if thumbnail_needs_web_video "$source"; then
-        web_video_path="${thumb_path%.webp}.web.mp4"
-        expected_thumbnails["$web_video_path"]=1
+  for root_album_path in "$albums_dir"/*/; do
+    [[ -d "$root_album_path" ]] || continue
+    while IFS= read -r -d '' album_path; do
+      album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
+      found_media=0
+      while IFS= read -r -d '' source; do
+        found_media=1
+        relative=${source#"$album_path"}; relative=${relative#/}
+        thumb_path="$thumbs_dir/$album_name/$relative.webp"
+        medium_path="${thumb_path%.webp}_medium.webp"
+        expected_thumbnails["$thumb_path"]=1
+        expected_thumbnails["$medium_path"]=1
+        expected_metadata["$metadata_dir/$album_name/$relative.json"]=1
+        if thumbnail_needs_web_video "$source"; then
+          web_video_path="${thumb_path%.webp}.web.mp4"
+          expected_thumbnails["$web_video_path"]=1
+        fi
+      done < <(thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct | sort -z)
+      ((found_media)) || continue
+      echo "Scanning album: $album_name"
+      if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$display_mode" \
+        && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$display_mode"; then
+        thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" || thumbnail_failed=1
+      else
+        thumbnail_failed=1
       fi
-    done < <(thumbnail_find_media "$album_path" image; thumbnail_find_media "$album_path" video | sort -z)
-    if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$display_mode" \
-      && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$display_mode"; then
-      thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" || thumbnail_failed=1
-    else
-      thumbnail_failed=1
-    fi
+    done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
   if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
 

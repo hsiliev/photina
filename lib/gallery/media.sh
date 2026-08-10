@@ -44,9 +44,13 @@ gallery_render_media_item() {
   fi
 
   viewer_url=$medium_url
-  if gallery_needs_web_video "$source"; then
-    web_video_path="${thumb_path%.webp}.web.mp4"
-    viewer_url="/thumbnails/$(gallery_url_escape_path "$album_rel/$relative.web.mp4")"
+  if gallery_is_video "$source"; then
+    if gallery_needs_web_video "$source"; then
+      web_video_path="${thumb_path%.webp}.web.mp4"
+      viewer_url="/thumbnails/$(gallery_url_escape_path "$album_rel/$relative.web.mp4")"
+    else
+      viewer_url=$media_url
+    fi
   fi
 
   (( item_index > 0 )) && printf ','
