@@ -23,37 +23,43 @@ gallery_js_escape() {
   printf '%s' "$value"
 }
 
-gallery_metadata_value() {
-  local tag=$1 metadata=$2
-  jq -r --arg tag "$tag" \
-    '.[0] | to_entries[] | select(.key == $tag or (.key | endswith(":" + $tag))) | .value // empty | tostring' \
-    -- "$metadata" 2>/dev/null | head -n 1
+gallery_metadata_values() {
+  jq -r '
+    .[0] as $m |
+    def value($tag): ([ $m | to_entries[] |
+      select(.key == $tag or (.key | endswith(":" + $tag))) | .value ][0] // "") | tostring;
+    value("Description"),
+    value("DateTimeOriginal"),
+    value("Model"),
+    value("LensModel"),
+    value("ExposureTime"),
+    value("FNumber"),
+    value("ISO"),
+    value("FocalLength"),
+    value("GPSLatitude"),
+    value("GPSLongitude")
+  ' -- "$1" 2>/dev/null
 }
 
 gallery_metadata_description() {
-  local metadata=$1 value description='' map_url latitude longitude
-  local -a exif_fields=(
-    'Description:Description'
-    'Date:DateTimeOriginal'
-    'Camera:Model'
-    'Lens:LensModel'
-    'Exposure:ExposureTime'
-    'Aperture:FNumber'
-    'ISO:ISO'
-    'Focal length:FocalLength'
+  local description='' map_url latitude longitude
+  local description_value=$1 date camera lens exposure aperture iso focal_length
+  date=$2; camera=$3; lens=$4; exposure=$5; aperture=$6; iso=$7; focal_length=$8
+  local -a values=(
+    "Description:$description_value" "Date:$date" "Camera:$camera" "Lens:$lens"
+    "Exposure:$exposure" "Aperture:$aperture" "ISO:$iso" "Focal length:$focal_length"
   )
-  local field label tag
+  local field label value
 
-  for field in "${exif_fields[@]}"; do
+  description=''
+  for field in "${values[@]}"; do
     label=${field%%:*}
-    tag=${field#*:}
-    value=$(gallery_metadata_value "$tag" "$metadata")
+    value=${field#*:}
     [[ -n "$value" ]] || continue
     description+="<div><strong>$(gallery_html_escape "$label"):</strong> $(gallery_html_escape "$value")</div>"
   done
 
-  latitude=$(gallery_metadata_value GPSLatitude "$metadata")
-  longitude=$(gallery_metadata_value GPSLongitude "$metadata")
+  latitude=$9; longitude=${10}
   if [[ -n "$latitude" && -n "$longitude" ]]; then
     map_url="https://www.openstreetmap.org/?mlat=$(gallery_url_escape_path "$latitude")&mlon=$(gallery_url_escape_path "$longitude")#map=15/$latitude/$longitude"
     description+="<div><a href=\"$(gallery_html_escape "$map_url")\" target=\"_blank\" rel=\"noopener\">View map</a></div>"
@@ -62,30 +68,19 @@ gallery_metadata_description() {
   printf '%s' "$description"
 }
 
-gallery_metadata_location() {
-  local metadata=$1 latitude longitude
-  latitude=$(gallery_metadata_value GPSLatitude "$metadata")
-  longitude=$(gallery_metadata_value GPSLongitude "$metadata")
-  [[ -n "$latitude" && -n "$longitude" ]] || return 0
-  printf '%s, %s' "$latitude" "$longitude"
+gallery_metadata_custom_data() {
+  local camera=$1 date=$2 lens=$3 exposure=$4 aperture=$5 iso=$6 focal_length=$7
+  jq -cn --arg camera "$camera" --arg date "$date" --arg lens "$lens" \
+    --arg exposure "$exposure" --arg aperture "$aperture" --arg iso "$iso" \
+    --arg focalLength "$focal_length" \
+    '{camera:$camera,date:$date,lens:$lens,exposure:$exposure,aperture:$aperture,iso:$iso,focalLength:$focalLength}
+     | with_entries(select(.value != ""))'
 }
 
-gallery_metadata_custom_data() {
-  local metadata=$1
-  jq -c '
-    .[0] as $m |
-    def value($tag): ([ $m | to_entries[] |
-      select(.key == $tag or (.key | endswith(":" + $tag))) | .value ][0] // null);
-    {
-      camera: value("Model"),
-      date: value("DateTimeOriginal"),
-      lens: value("LensModel"),
-      exposure: value("ExposureTime"),
-      aperture: value("FNumber"),
-      iso: value("ISO"),
-      focalLength: value("FocalLength")
-    } | with_entries(select(.value != null))
-  ' -- "$metadata"
+gallery_metadata_location() {
+  local latitude=$1 longitude=$2
+  [[ -n "$latitude" && -n "$longitude" ]] || return 0
+  printf '%s, %s' "$latitude" "$longitude"
 }
 
 gallery_is_video() {
@@ -145,7 +140,7 @@ gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
   local album_name source relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url title description exif_location custom_data child child_name
   local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
-  local -a sources=() preview_sources=()
+  local -a sources=() preview_sources=() metadata_values=()
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
   while IFS= read -r -d '' source; do sources+=("$source"); done < <(gallery_find_media "$album_dir")
@@ -197,9 +192,17 @@ gallery_render_album() {
       exif_location=''
       custom_data='{}'
       if [[ -f "$metadata_path" ]]; then
-        description=$(gallery_metadata_description "$metadata_path")
-        exif_location=$(gallery_metadata_location "$metadata_path")
-        custom_data=$(gallery_metadata_custom_data "$metadata_path")
+        mapfile -t metadata_values < <(gallery_metadata_values "$metadata_path")
+        description=$(gallery_metadata_description \
+          "${metadata_values[0]:-}" "${metadata_values[1]:-}" "${metadata_values[2]:-}" \
+          "${metadata_values[3]:-}" "${metadata_values[4]:-}" "${metadata_values[5]:-}" \
+          "${metadata_values[6]:-}" "${metadata_values[7]:-}" "${metadata_values[8]:-}" \
+          "${metadata_values[9]:-}")
+        exif_location=$(gallery_metadata_location "${metadata_values[8]:-}" "${metadata_values[9]:-}")
+        custom_data=$(gallery_metadata_custom_data \
+          "${metadata_values[2]:-}" "${metadata_values[1]:-}" "${metadata_values[3]:-}" \
+          "${metadata_values[4]:-}" "${metadata_values[5]:-}" "${metadata_values[6]:-}" \
+          "${metadata_values[7]:-}")
       fi
       viewer_url=$medium_url
       if gallery_needs_web_video "$source"; then
@@ -242,9 +245,27 @@ gallery_render_album() {
   gallery_print_template album-end.html
 }
 
+gallery_write_nested_fragments() {
+  local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
+  local child child_name child_rel fragment_tmp fragment_path
+
+  while IFS= read -r -d '' child; do
+    child_name=${child%/}; child_name=${child_name##*/}
+    child_rel="$album_rel/$child_name"
+    fragment_path="$fragment_dir/$child_rel.html"
+    mkdir -p -- "$(dirname -- "$fragment_path")"
+    fragment_tmp=$(mktemp "$(dirname -- "$fragment_path")/.fragment-XXXXXX")
+    gallery_render_album "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" \
+      "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
+    mv -f -- "$fragment_tmp" "$fragment_path"
+    gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" \
+      "$output_dir" "$fragment_dir"
+  done < <(gallery_find_child_albums "$album_dir")
+}
+
 generate_gallery() {
   local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 metadata_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
-  local index_tmp index_template fragment_dir fragment_tmp album_path album_name album_index album_list
+  local index_tmp index_template fragment_dir fragment_tmp fragment_path fragment_rel album_path album_name album_list
   local backup_dir old_entry
   gallery_next_id=0
   gallery_template_dir="$script_dir/templates/gallery"
@@ -262,21 +283,23 @@ generate_gallery() {
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
   echo "Cleaning old album fragments in $fragment_dir"
-  find -P "$fragment_dir" -type f -name 'album-*.html' -delete
+  find -P "$fragment_dir" -type f -name '*.html' -delete
   album_list=
-  album_index=0
   while IFS= read -r -d '' album_path; do
-    album_index=$((album_index + 1))
     album_name=${album_path%/}; album_name=${album_name##*/}
     printf 'Generating album fragment: %s ' "$album_name"
     gallery_image_count=0
-    fragment_tmp=$(mktemp "$fragment_dir/.album-XXXXXX")
+    fragment_rel="$album_name.html"
+    fragment_path="$fragment_dir/$fragment_rel"
+    fragment_tmp=$(mktemp "$fragment_dir/.fragment-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
     printf '\n'
-    mv -f -- "$fragment_tmp" "$fragment_dir/album-$album_index.html"
+    mv -f -- "$fragment_tmp" "$fragment_path"
+    gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" \
+      "$output_dir" "$fragment_dir"
     [[ -n "$album_list" ]] && album_list+=,
-    album_list+=$(printf '{"url":"albums/album-%s.html"}' "$album_index")
+    album_list+=$(printf '{"url":"albums/%s"}' "$(gallery_url_escape_path "$fragment_rel")")
   done < <(gallery_find_child_albums "$albums_dir")
 
   index_tmp=$(mktemp)
