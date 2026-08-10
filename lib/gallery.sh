@@ -24,9 +24,20 @@ gallery_js_escape() {
 }
 
 gallery_is_video() {
-  case "${1##*.}" in
+  local extension=${1##*.}
+  extension=${extension,,}
+  case "$extension" in
     mp4|m4v|mov|mkv|webm|avi|mpeg|mpg|ts|mts) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+gallery_needs_web_video() {
+  local extension=${1##*.}
+  extension=${extension,,}
+  case "$extension" in
+    mp4) return 1 ;;
+    *) gallery_is_video "$1" ;;
   esac
 }
 
@@ -61,6 +72,10 @@ gallery_find_album_cover() {
   find -P "$1" -mindepth 1 -maxdepth 1 -type f -iname 'album.jpg' -print0 | sort -z | head -z -n 1
 }
 
+gallery_find_child_albums() {
+  find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0 | LC_ALL=C sort -z
+}
+
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 output_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
   local album_name source relative thumb_path medium_path web_video_path media_url medium_url thumb_url title child child_name
@@ -76,10 +91,9 @@ gallery_render_album() {
   fi
   preview_source=${preview_sources[0]:-}
   child_count=0
-  for child in "$album_dir"/*/; do
-    [[ -d "$child" ]] || continue
+  while IFS= read -r -d '' child; do
     child_count=$((child_count + 1))
-  done
+  done < <(gallery_find_child_albums "$album_dir")
   if [[ -n "$preview_source" ]]; then
     preview_relative=${preview_source#"$album_dir"}; preview_relative=${preview_relative#/}
     preview_thumb_path="$thumbs_dir/$album_rel/$preview_relative.webp"
@@ -114,7 +128,7 @@ gallery_render_album() {
       thumb_url=$(gallery_url_escape_path "$thumb_url")
       title=${relative##*/}; title=${title%.*}
       viewer_url=$medium_url
-      if gallery_is_video "$source"; then
+      if gallery_needs_web_video "$source"; then
         web_video_path="${thumb_path%.webp}.web.mp4"
         viewer_url=$(realpath --relative-to="$output_dir" "$web_video_path")
         viewer_url=$(gallery_url_escape_path "$viewer_url")
@@ -122,18 +136,18 @@ gallery_render_album() {
       (( item_index > 0 )) && printf ','
       gallery_print_template item.html \
         "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-        "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$title")"
+        "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+        "$(gallery_js_escape "$title")"
       item_index=$((item_index + 1))
     done
     gallery_print_template items-end.html
   fi
 
-  for child in "$album_dir"/*/; do
-    [[ -d "$child" ]] || continue
+  while IFS= read -r -d '' child; do
     child_name=${child%/}; child_name=${child_name##*/}
     gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode"
-  done
+  done < <(gallery_find_child_albums "$album_dir")
   gallery_print_template album-end.html
 }
 
@@ -147,21 +161,21 @@ generate_gallery() {
   mkdir -p -- "$output_dir/assets"
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
+  echo "Cleaning old album fragments in $fragment_dir"
   find -P "$fragment_dir" -type f -name 'album-*.html' -delete
   album_list=
   album_index=0
-  shopt -s nullglob
-  for album_path in "$albums_dir"/*/; do
-    [[ -d "$album_path" ]] || continue
+  while IFS= read -r -d '' album_path; do
     album_index=$((album_index + 1))
     album_name=${album_path%/}; album_name=${album_name##*/}
+    echo "Generating album fragment: $album_name"
     fragment_tmp=$(mktemp "$fragment_dir/.album-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" >"$fragment_tmp"
     mv -f -- "$fragment_tmp" "$fragment_dir/album-$album_index.html"
     [[ -n "$album_list" ]] && album_list+=,
     album_list+=$(printf '{"url":"albums/album-%s.html"}' "$album_index")
-  done
+  done < <(gallery_find_child_albums "$albums_dir")
 
   index_tmp=$(mktemp)
   trap 'rm -f -- "$index_tmp"' EXIT
@@ -170,6 +184,7 @@ generate_gallery() {
   index_template=${index_template//__ALBUM_LIST__/$album_list}
   [[ "$index_template" != *'__ALBUM_LIST__'* ]] || die 'gallery template is missing __ALBUM_LIST__'
 
+  echo 'Writing gallery index'
   printf '%s' "$index_template" >"$index_tmp"
 
   mv -f -- "$index_tmp" "$output_dir/index.html"

@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 
 thumbnail_is_video() {
-  case "${1##*.}" in
+  local extension=${1##*.}
+  extension=${extension,,}
+  case "$extension" in
     mp4|m4v|mov|mkv|webm|avi|mpeg|mpg|ts|mts) return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+thumbnail_needs_web_video() {
+  local extension=${1##*.}
+  extension=${extension,,}
+  case "$extension" in
+    mp4) return 1 ;;
+    *) thumbnail_is_video "$1" ;;
   esac
 }
 
@@ -54,8 +65,10 @@ thumbnail_make() {
       -alpha off -strip -quality 86 "$thumbnail_tmp"
     "$image_tool" "$video_frame_tmp" -thumbnail "${medium_size}x${medium_size}>" \
       -background white -alpha remove -alpha off -strip -quality 86 "$medium_tmp"
-    ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
-      >/dev/null 2>&1
+    if thumbnail_needs_web_video "$source"; then
+      ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
+        >/dev/null 2>&1
+    fi
   else
     "$image_tool" "$source" -auto-orient -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
       -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
@@ -66,7 +79,7 @@ thumbnail_make() {
 
   mv -f -- "$thumbnail_tmp" "$thumbnail"
   mv -f -- "$medium_tmp" "$medium"
-  if thumbnail_is_video "$source"; then
+  if thumbnail_needs_web_video "$source"; then
     mv -f -- "$web_video_tmp" "$web_video"
   fi
   rm -f -- "$video_frame_tmp"
@@ -78,7 +91,7 @@ thumbnail_process_item() {
   thumbnail="$thumbs_dir/$album_name/$relative.webp"
   medium_size=$7
   force=$8
-  if thumbnail_is_video "$source"; then
+  if thumbnail_needs_web_video "$source"; then
     [[ "$force" == 1 || ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" || ! -f "${thumbnail%.webp}.web.mp4" ]] || return 0
   else
     [[ "$force" == 1 || ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" ]] || return 0
@@ -89,7 +102,7 @@ thumbnail_process_item() {
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 force=$9
-  export -f thumbnail_is_video thumbnail_make thumbnail_process_item
+  export -f thumbnail_is_video thumbnail_needs_web_video thumbnail_make thumbnail_process_item
 
   if [[ "$kind" == image ]]; then
     thumbnail_find_media "$album_path" image
@@ -135,7 +148,7 @@ update_thumbnails() {
       medium_path="${thumb_path%.webp}_medium.webp"
       expected_thumbnails["$thumb_path"]=1
       expected_thumbnails["$medium_path"]=1
-      if thumbnail_is_video "$source"; then
+      if thumbnail_needs_web_video "$source"; then
         web_video_path="${thumb_path%.webp}.web.mp4"
         expected_thumbnails["$web_video_path"]=1
       fi
