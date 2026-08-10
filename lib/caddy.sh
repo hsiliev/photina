@@ -25,10 +25,10 @@ generate_caddyfile() {
     for album in "${guest_albums[@]}"; do
       escaped_album=${album//\\/\\\\}
       escaped_album=${escaped_album//\"/\\\"}
-      guest_media_block+=$(printf ' "/dist/media/%s/*"' "$escaped_album")
+      guest_media_block+=$(printf ' "/media/%s/*"' "$escaped_album")
       guest_thumbnails_block+=$(printf ' "/thumbnails/%s/*"' "$escaped_album")
     done
-    guest_media_block+=$'\n\t}\n\thandle @guest_allowed_media {\n\t\thandle_path /dist/media/* {\n\t\t\troot * "'"$albums_dir"$'"\n\t\t\tfile_server\n\t\t}\n\t}\n'
+    guest_media_block+=$'\n\t}\n\thandle @guest_allowed_media {\n\t\thandle_path /media/* {\n\t\t\troot * "'"$albums_dir"$'"\n\t\t\tfile_server\n\t\t}\n\t}\n'
     guest_thumbnails_block+=$'\n\t}\n\thandle @guest_allowed_thumbnails {\n\t\thandle_path /thumbnails/* {\n\t\t\troot * "'"$thumbs_dir"$'"\n\t\t\tfile_server\n\t\t}\n\t}\n'
   fi
 

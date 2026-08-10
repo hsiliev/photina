@@ -4,9 +4,6 @@ __CADDY_HOST__:__CADDY_PORT__, www.__CADDY_HOST__:__CADDY_PORT__ {
 		format console
 	}
 
-	@site_root path /
-	redir @site_root /dist/ 302
-
 	basic_auth {
 		admin __ADMIN_PASSWORD_HASH__
 		guest __GUEST_PASSWORD_HASH__
@@ -16,11 +13,11 @@ __GUEST_ALLOWED_MEDIA__
 __GUEST_ALLOWED_THUMBNAILS__
 	@guest_denied_media {
 		expression `{http.auth.user.id} == "guest"`
-		path /dist/media/*
+		path /media/*
 	}
 	respond @guest_denied_media 403
 
-	handle_path /dist/media/* {
+	handle_path /media/* {
 		root * "__ALBUMS_DIR__"
 		file_server
 	}
@@ -31,13 +28,13 @@ __GUEST_ALLOWED_THUMBNAILS__
 	}
 	respond @guest_denied_thumbnails 403
 
-	handle /dist/* {
-		root * "__OUTPUT_PARENT__"
+	handle /thumbnails/* {
+		root * "__THUMBNAILS_PARENT__"
 		file_server
 	}
 
-	handle /thumbnails/* {
-		root * "__THUMBNAILS_PARENT__"
+	handle /* {
+		root * "__OUTPUT_DIR__"
 		file_server
 	}
 
