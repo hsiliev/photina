@@ -1,4 +1,4 @@
-:80 {
+__CADDY_HOST__:__CADDY_PORT__, www.__CADDY_HOST__:__CADDY_PORT__ {
 	log {
 		output file /var/log/caddy/access.log
 		format console

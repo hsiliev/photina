@@ -2,11 +2,11 @@
 
 generate_caddyfile() {
   local script_dir=$1 caddyfile=$2 albums_dir=$3 output_dir=$4 thumbs_dir=$5
-  local admin_password=$6 guest_password=$7
+  local caddy_host=$6 caddy_port=$7 admin_password=$8 guest_password=$9
   local admin_password_hash guest_password_hash caddyfile_tmp album escaped_album
   local output_parent thumbs_parent caddy_template guest_media_block guest_thumbnails_block
   local existing_config managed_block merged_config managed_start managed_end
-  shift 7
+  shift 9
   local -a guest_albums=("$@")
 
   admin_password_hash=$(caddy hash-password --plaintext "$admin_password")
@@ -32,14 +32,17 @@ generate_caddyfile() {
     guest_thumbnails_block+=$'\n\t}\n\thandle @guest_allowed_thumbnails {\n\t\thandle_path /thumbnails/* {\n\t\t\troot * "'"$thumbs_dir"$'"\n\t\t\tfile_server\n\t\t}\n\t}\n'
   fi
 
-  caddy_template=$(<"$script_dir/resources/Caddyfile.template")
+  caddy_template=$(<"$script_dir/templates/Caddyfile.template")
   caddy_template=${caddy_template//__ADMIN_PASSWORD_HASH__/$admin_password_hash}
   caddy_template=${caddy_template//__GUEST_PASSWORD_HASH__/$guest_password_hash}
   caddy_template=${caddy_template//__GUEST_ALLOWED_MEDIA__/$guest_media_block}
   caddy_template=${caddy_template//__GUEST_ALLOWED_THUMBNAILS__/$guest_thumbnails_block}
   caddy_template=${caddy_template//__ALBUMS_DIR__/$albums_dir}
+  caddy_template=${caddy_template//__OUTPUT_DIR__/$output_dir}
   caddy_template=${caddy_template//__OUTPUT_PARENT__/$output_parent}
   caddy_template=${caddy_template//__THUMBNAILS_PARENT__/$thumbs_parent}
+  caddy_template=${caddy_template//__CADDY_HOST__/$caddy_host}
+  caddy_template=${caddy_template//__CADDY_PORT__/$caddy_port}
   managed_start='# BEGIN PHOTINA MANAGED'
   managed_end='# END PHOTINA MANAGED'
   managed_block=$(printf '%s\n%s\n%s' "$managed_start" "$caddy_template" "$managed_end")

@@ -14,6 +14,7 @@ config_mode=$((0$config_mode))
 
 GUEST_ALBUMS=()
 # shellcheck source=photina.conf
+# shellcheck disable=SC1091
 source "$config_file"
 
 usage() {
@@ -26,8 +27,14 @@ EOF
 
 thumbnail_size=${THUMBNAIL_SIZE:-250}
 [[ "$thumbnail_size" =~ ^[1-9][0-9]*$ ]] || die "THUMBNAIL_SIZE must be a positive integer"
+thumbnail_display_mode=${THUMBNAIL_DISPLAY_MODE:-cascading}
+[[ "$thumbnail_display_mode" =~ ^[A-Za-z]+$ ]] || die "THUMBNAIL_DISPLAY_MODE must be a mode name"
 
 caddyfile=${CADDYFILE:-/etc/caddy/Caddyfile}
+caddy_host=${HOST:-localhost}
+caddy_port=${PORT:-80}
+[[ "$caddy_host" =~ ^[A-Za-z0-9.-]+$ ]] || die "HOST must be a hostname"
+[[ "$caddy_port" =~ ^[1-9][0-9]*$ && "$caddy_port" -le 65535 ]] || die "PORT must be between 1 and 65535"
 [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD must be set in $config_file"
 [[ -n "${GUEST_PASSWORD:-}" ]] || die "GUEST_PASSWORD must be set in $config_file"
 
@@ -54,14 +61,17 @@ command -v find >/dev/null || die "find is required"
 command -v realpath >/dev/null || die "realpath is required"
 command -v caddy >/dev/null || die "caddy is required to hash passwords and update $caddyfile"
 command -v sudo >/dev/null || die "sudo is required to set ownership and permissions on $caddyfile"
+command -v systemctl >/dev/null || die 'systemctl is required to reload caddy'
 
 # shellcheck source=lib/gallery.sh
 source "$script_dir/lib/gallery.sh"
 # shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
 
-generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$thumbnail_size"
+generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$thumbnail_size" "$thumbnail_display_mode"
 generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$output_dir" "$thumbs_dir" \
-  "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
+  "$caddy_host" "$caddy_port" "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
 sudo chown caddy:caddy -- "$caddyfile"
 sudo chmod 644 -- "$caddyfile"
+echo 'Reloading Caddy'
+sudo systemctl reload caddy

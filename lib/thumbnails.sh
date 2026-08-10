@@ -7,36 +7,97 @@ thumbnail_is_video() {
   esac
 }
 
+thumbnail_core_count() {
+  local cores=1
+  if command -v nproc >/dev/null; then
+    cores=$(nproc)
+  fi
+  (( cores > 0 )) || cores=1
+  printf '%s\n' "$cores"
+}
+
+thumbnail_find_media() {
+  local directory=$1 kind=$2
+  local -a extensions find_args
+  if [[ "$kind" == image ]]; then
+    extensions=("${IMAGE_EXTENSIONS[@]}")
+  else
+    extensions=("${VIDEO_EXTENSIONS[@]}")
+  fi
+  find_args=(-P "$directory" -type f '(')
+  local extension first=1
+  for extension in "${extensions[@]}"; do
+    (( first )) || find_args+=(-o)
+    find_args+=(-iname "*.$extension")
+    first=0
+  done
+  find_args+=(')' -print0)
+  find "${find_args[@]}"
+}
+
 thumbnail_make() {
-  local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4 display_name=${5:-${source##*/}}
-  local thumbnail_tmp=${thumbnail%.jpg}.generating.jpg
-  local processed_tmp=${thumbnail%.jpg}.generated.jpg
-  local ready_tmp
+  local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4
+  local display_name=${5:-${source##*/}} medium_size=$6
+  local thumbnail_tmp=${thumbnail%.webp}.generating.webp
+  local medium=${thumbnail%.webp}_medium.webp
+  local medium_tmp=${medium%.webp}.generating.webp
+  local video_tmp=${thumbnail%.webp}.video.jpg
 
   printf '\t%s\n' "$display_name"
   mkdir -p -- "$(dirname -- "$thumbnail")"
   if thumbnail_is_video "$source"; then
-    ffmpegthumbnailer -i "$source" -o "$thumbnail_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
-    "$image_tool" "$thumbnail_tmp" -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
+    ffmpegthumbnailer -i "$source" -o "$video_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
+    "$image_tool" "$video_tmp" -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
       -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-      -alpha off -strip -quality 86 "$processed_tmp"
-    ready_tmp=$processed_tmp
+      -alpha off -strip -quality 86 "$thumbnail_tmp"
+    "$image_tool" "$video_tmp" -thumbnail "${medium_size}x${medium_size}>" \
+      -background white -alpha remove -alpha off -strip -quality 86 "$medium_tmp"
   else
     "$image_tool" "$source" -auto-orient -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
       -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
       -alpha off -strip -quality 86 "$thumbnail_tmp"
-    ready_tmp=$thumbnail_tmp
+    "$image_tool" "$source" -auto-orient -thumbnail "${medium_size}x${medium_size}>" \
+      -strip -quality 90 "$medium_tmp"
   fi
 
-  mv -f -- "$ready_tmp" "$thumbnail"
-  rm -f -- "$thumbnail_tmp" "$processed_tmp"
+  mv -f -- "$thumbnail_tmp" "$thumbnail"
+  mv -f -- "$medium_tmp" "$medium"
+  rm -f -- "$video_tmp"
+}
+
+thumbnail_process_item() {
+  local source=$1 album_path=$2 album_name=$3 thumbs_dir=$4 thumbnail_size=$5 image_tool=$6 relative medium_size thumbnail force
+  relative=${source#"$album_path"}; relative=${relative#/}
+  thumbnail="$thumbs_dir/$album_name/$relative.webp"
+  medium_size=$7
+  force=$8
+  [[ "$force" == 1 || ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" ]] || return 0
+  thumbnail_make "$source" "$thumbnail" "$thumbnail_size" "$image_tool" "$relative" "$medium_size"
+}
+
+# shellcheck disable=SC2016
+thumbnail_batch_album() {
+  local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 force=$9
+  export -f thumbnail_is_video thumbnail_make thumbnail_process_item
+
+  if [[ "$kind" == image ]]; then
+    thumbnail_find_media "$album_path" image
+  else
+    thumbnail_find_media "$album_path" video
+  fi |
+    if ! xargs -0 -r -n 1 -P "$parallel_jobs" bash -c '
+      thumbnail_process_item "$8" "$1" "$2" "$3" "$4" "$5" "$6" "$7"
+    ' _ "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$image_tool" "$medium_size" "$force"; then
+    return 1
+  fi
 }
 
 update_thumbnails() {
-  local albums_dir=$1 thumbs_dir=$2 thumbnail_size=$3 force=${4:-0}
+  local albums_dir=$1 thumbs_dir=$2 thumbnail_size=$3 medium_size=$4 force=${5:-0}
   local image_tool parallel_jobs thumbnail_failed=0
-  local album_path album_name source relative thumb_path
-  local -a thumbnail_pids=()
+  local album_path album_name source relative thumb_path medium_path
+  local thumbnail stale_relative
+  declare -A expected_thumbnails=()
 
   if command -v magick >/dev/null; then
     image_tool=magick
@@ -45,12 +106,7 @@ update_thumbnails() {
   else
     die 'ImageMagick (magick or convert) is required'
   fi
-  if command -v nproc >/dev/null; then
-    parallel_jobs=$(nproc)
-  else
-    parallel_jobs=1
-  fi
-  (( parallel_jobs > 0 )) || parallel_jobs=1
+  parallel_jobs=$(thumbnail_core_count)
 
   echo "Updating thumbnails in $thumbs_dir"
   echo "Image tool: $image_tool"
@@ -64,25 +120,22 @@ update_thumbnails() {
     echo "Scanning album: $album_name"
     while IFS= read -r -d '' source; do
       relative=${source#"$album_path"}; relative=${relative#/}
-      thumb_path="$thumbs_dir/$album_name/$relative.jpg"
-      [[ "$force" == 1 || ! -f "$thumb_path" ]] || continue
-      thumbnail_make "$source" "$thumb_path" "$thumbnail_size" "$image_tool" "$relative" &
-      thumbnail_pids+=("$!")
-      while (( ${#thumbnail_pids[@]} >= parallel_jobs )); do
-        if ! wait "${thumbnail_pids[0]}"; then thumbnail_failed=1; fi
-        thumbnail_pids=("${thumbnail_pids[@]:1}")
-      done
-    done < <(find -P "$album_path" -type f \( \
-      -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.webp' \
-      -o -iname '*.bmp' -o -iname '*.tif' -o -iname '*.tiff' -o -iname '*.avif' -o -iname '*.heic' -o -iname '*.heif' \
-      -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.mkv' -o -iname '*.webm' \
-      -o -iname '*.avi' -o -iname '*.mpeg' -o -iname '*.mpg' -o -iname '*.ts' -o -iname '*.mts' \) -print0 | sort -z)
-  done
-
-  while (( ${#thumbnail_pids[@]} > 0 )); do
-    if ! wait "${thumbnail_pids[0]}"; then thumbnail_failed=1; fi
-    thumbnail_pids=("${thumbnail_pids[@]:1}")
+      thumb_path="$thumbs_dir/$album_name/$relative.webp"
+      medium_path="${thumb_path%.webp}_medium.webp"
+      expected_thumbnails["$thumb_path"]=1
+      expected_thumbnails["$medium_path"]=1
+    done < <(thumbnail_find_media "$album_path" image; thumbnail_find_media "$album_path" video | sort -z)
+    thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$force" || thumbnail_failed=1
+    thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$force" || thumbnail_failed=1
   done
   if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
+
+  while IFS= read -r -d '' thumbnail; do
+    [[ -n ${expected_thumbnails["$thumbnail"]+present} ]] && continue
+    stale_relative=${thumbnail#"$thumbs_dir"/}
+    printf '\tRemoving stale thumbnail: %s\n' "$stale_relative"
+    rm -f -- "$thumbnail"
+  done < <(find -P "$thumbs_dir" -type f \( -name '*.webp' -o -name '*.avif' -o -name '*.jpg' \) -print0)
+
   echo 'Thumbnail update complete'
 }

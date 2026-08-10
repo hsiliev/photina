@@ -12,6 +12,7 @@ config_mode=$((0$config_mode))
 (( (config_mode & 077) == 0 )) || warn "$config_file must be private; run chmod 600 '$config_file'"
 
 # shellcheck source=photina.conf
+# shellcheck disable=SC1091
 source "$config_file"
 
 force=0
@@ -24,6 +25,8 @@ fi
 [[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
 thumbnail_size=${THUMBNAIL_SIZE:-250}
 [[ "$thumbnail_size" =~ ^[1-9][0-9]*$ ]] || die 'THUMBNAIL_SIZE must be a positive integer'
+medium_size=${MEDIUM_SIZE:-1600}
+[[ "$medium_size" =~ ^[1-9][0-9]*$ ]] || die 'MEDIUM_SIZE must be a positive integer'
 
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
 thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
@@ -59,4 +62,4 @@ check_caddy_access() {
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
 check_caddy_access
-update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$force"
+update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$force"
