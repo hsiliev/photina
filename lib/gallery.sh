@@ -154,10 +154,19 @@ gallery_render_album() {
 generate_gallery() {
   local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
   local index_tmp index_template fragment_dir fragment_tmp album_path album_name album_index album_list
+  local backup_dir old_entry
   gallery_next_id=0
   gallery_template_dir="$script_dir/templates/gallery"
 
   echo "Generating gallery in $output_dir"
+  mkdir -p -- "$(dirname -- "$output_dir")"
+  backup_dir=$(mktemp -d "$(dirname -- "$output_dir")/.photina-backup.XXXXXX")
+  echo "Backing up existing gallery files to $backup_dir"
+  if [[ -d "$output_dir" ]]; then
+    while IFS= read -r -d '' old_entry; do
+      mv -- "$old_entry" "$backup_dir/"
+    done < <(find -P "$output_dir" -mindepth 1 -maxdepth 1 -print0)
+  fi
   mkdir -p -- "$output_dir/assets"
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
@@ -189,6 +198,8 @@ generate_gallery() {
 
   mv -f -- "$index_tmp" "$output_dir/index.html"
   trap - EXIT
+  rm -rf -- "$backup_dir"
+  echo "Removed gallery backup $backup_dir"
   echo 'Gallery generation complete'
   printf 'Gallery written to %s\n' "$output_dir/index.html"
 }
