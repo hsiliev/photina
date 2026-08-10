@@ -29,7 +29,28 @@ if (photinaAlbums.length === 0) {
   const appendFragment = (container, fragment) => {
     const scripts = [...fragment.querySelectorAll('script')];
     container.append(fragment);
-    scripts.forEach(script => Function(script.textContent)());
+    scripts.forEach(script => {
+      let initialized = false;
+      const initialize = () => {
+        if (initialized) return;
+        initialized = true;
+        Function(script.textContent)();
+      };
+      const details = script.closest('details');
+      if (details) {
+        const initializeWhenOpen = () => {
+          if (details.open) setTimeout(initialize, 0);
+        };
+        details.addEventListener('toggle', initializeWhenOpen);
+        const summary = details.querySelector(':scope > summary');
+        summary?.addEventListener('click', () => {
+          setTimeout(initializeWhenOpen, 0);
+        }, {once:true});
+        if (details.open) setTimeout(initialize, 0);
+      } else {
+        initialize();
+      }
+    });
   };
   const renderAlbum = async album => {
     if (!album.children) return {fragment: await loadFragment(album.url)};

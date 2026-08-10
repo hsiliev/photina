@@ -64,7 +64,7 @@ gallery_generate_parent_album() {
     child_name=${child%/}; child_name=${child_name##*/}
     gallery_album_is_visible "$album_name/$child_name" || continue
     [[ -n "$child_urls" ]] && child_urls+=,
-    child_urls+=$(printf '{"url":"albums/%s/%s.html"}' \
+    child_urls+=$(printf '{"url":"%s/albums/%s/%s.html"}' "$gallery_output_url_prefix" \
       "$(gallery_js_escape "$(gallery_url_escape_path "$album_name")")" \
       "$(gallery_js_escape "$(gallery_url_escape_path "$child_name")")")
   done < <(gallery_find_child_albums "$album_path")
@@ -90,7 +90,7 @@ gallery_generate_leaf_album() {
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   fi
-  gallery_append_album_list_item "$(printf '{"url":"albums/%s"}' "$(gallery_url_escape_path "$fragment_rel")")"
+  gallery_append_album_list_item "$(printf '{"url":"%s/albums/%s"}' "$gallery_output_url_prefix" "$(gallery_url_escape_path "$fragment_rel")")"
 }
 
 generate_gallery() {
@@ -101,6 +101,7 @@ generate_gallery() {
   local -a direct_media=()
   gallery_next_id=0
   gallery_allowed_albums=("${allowed_albums[@]}")
+  gallery_output_url_prefix="/${output_dir##*/}"
   gallery_template_dir="$script_dir/templates/gallery"
 
   echo "Generating gallery in $output_dir"

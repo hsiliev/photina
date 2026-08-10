@@ -67,8 +67,10 @@ authenticated guest to `/guest/`. Guests only see the albums listed in
 
 ```bash
 GUEST_ALBUMS=(
-  "Greece/2026-08-01 - Σπήλαιο Πετραλώνων"
+  "Greece/Θεσσαλονίκη"
+  "Sadovetz"
 )
+
 ```
 
 Generate or delete one output independently when needed:
