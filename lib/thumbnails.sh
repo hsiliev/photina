@@ -55,7 +55,7 @@ thumbnail_find_media() {
 }
 
 thumbnail_make() {
-  local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4 metadata=$5
+  local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4
   local display_name=${5:-${source##*/}} medium_size=$6 metadata=$7
   local thumbnail_tmp=${thumbnail%.webp}.generating.webp
   local medium=${thumbnail%.webp}_medium.webp
@@ -63,27 +63,36 @@ thumbnail_make() {
   local video_frame_tmp=${thumbnail%.webp}.video.jpg
   local web_video=${thumbnail%.webp}.web.mp4
   local web_video_tmp=${web_video%.mp4}.generating.mp4
+  local progress=$display_name
 
-  printf '\t%s\n' "$display_name"
   mkdir -p -- "$(dirname -- "$thumbnail")"
-  thumbnail_write_metadata "$source" "$metadata"
   if thumbnail_is_video "$source"; then
+    progress+=' ➤ 🎞️ video frame'
     ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
+    progress+=' ➤ 🖼️ thumbnail'
     "$image_tool" "$video_frame_tmp" -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
       -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
       -alpha off -strip -quality 86 "$thumbnail_tmp"
+    progress+=' ➤ 🖼️ medium'
     "$image_tool" "$video_frame_tmp" -thumbnail "${medium_size}x${medium_size}>" \
       -background white -alpha remove -alpha off -strip -quality 86 "$medium_tmp"
+    progress+=' ➤ 🧾 exif'
+    thumbnail_write_metadata "$source" "$metadata"
     if thumbnail_needs_web_video "$source"; then
+      progress+=' ➤ 🎬 web video'
       ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
         >/dev/null 2>&1
     fi
   else
+    progress+=' ➤ 🖼️ thumbnail'
     "$image_tool" "$source" -auto-orient -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
       -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
       -alpha off -strip -quality 86 "$thumbnail_tmp"
+    progress+=' ➤ 🖼️ medium'
     "$image_tool" "$source" -auto-orient -thumbnail "${medium_size}x${medium_size}>" \
       -strip -quality 90 "$medium_tmp"
+    progress+=' ➤ 🧾 exif'
+    thumbnail_write_metadata "$source" "$metadata"
   fi
 
   mv -f -- "$thumbnail_tmp" "$thumbnail"
@@ -92,6 +101,7 @@ thumbnail_make() {
     mv -f -- "$web_video_tmp" "$web_video"
   fi
   rm -f -- "$video_frame_tmp"
+  printf '\t%s\n' "$progress"
 }
 
 thumbnail_process_item() {
@@ -103,8 +113,12 @@ thumbnail_process_item() {
   force=$9
   if [[ "$force" != 1 && -f "$metadata" ]]; then
     :
+  elif [[ "$force" == 1 || ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" ]]; then
+    :
   else
     thumbnail_write_metadata "$source" "$metadata"
+    printf '\t%s ➤ 🧾 exif\n' "$relative"
+    return 0
   fi
   if thumbnail_needs_web_video "$source"; then
     [[ "$force" == 1 || ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" || ! -f "${thumbnail%.webp}.web.mp4" ]] || return 0
