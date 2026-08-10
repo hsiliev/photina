@@ -17,27 +17,33 @@ source "$config_file"
 
 usage() {
   cat <<'EOF'
-Usage: generate-gallery.sh [ALBUMS_DIR] [OUTPUT_DIR] [THUMBNAILS_DIR]
+Usage: generate-gallery.sh
 
-Arguments override the matching values from photina.conf.
-
-Configuration:
-  ALBUMS_DIR, OUTPUT_DIR, THUMBNAILS_DIR
-  CADDYFILE, ADMIN_PASSWORD, GUEST_PASSWORD, GUEST_ALBUMS, THUMBNAIL_SIZE
+Check the configuration in photina.conf
 EOF
 }
 
 thumbnail_size=${THUMBNAIL_SIZE:-250}
 [[ "$thumbnail_size" =~ ^[1-9][0-9]*$ ]] || die "THUMBNAIL_SIZE must be a positive integer"
 
-caddyfile=${CADDYFILE:-$script_dir/Caddyfile}
+caddyfile=${CADDYFILE:-/etc/caddy/Caddyfile}
 [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD must be set in $config_file"
 [[ -n "${GUEST_PASSWORD:-}" ]] || die "GUEST_PASSWORD must be set in $config_file"
 
-[[ $# -le 3 ]] || { usage >&2; exit 2; }
-albums_dir=$(realpath -m -- "${1:-${ALBUMS_DIR:-/mnt/gallery/photos}}")
-output_dir=$(realpath -m -- "${2:-${OUTPUT_DIR:-/mnt/gallery/dist}}")
-thumbs_dir=$(realpath -m -- "${3:-${THUMBNAILS_DIR:-/mnt/gallery/thumbnails}}")
+[[ $# -eq 0 ]] || { usage >&2; exit 2; }
+[[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
+[[ -n "${OUTPUT_DIR:-}" ]] || die "OUTPUT_DIR must be set in $config_file"
+[[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
+
+albums_dir=$(realpath -m -- "$ALBUMS_DIR")
+output_dir=$(realpath -m -- "$OUTPUT_DIR")
+thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
+
+printf 'Configured directories:\n'
+printf '  ALBUMS_DIR: %s\n' "$albums_dir"
+printf '  OUTPUT_DIR: %s\n' "$output_dir"
+printf '  THUMBNAILS_DIR: %s\n' "$thumbs_dir"
+printf '  CADDYFILE: %s\n' "$caddyfile"
 
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
 [[ "$output_dir/" != "$albums_dir/"* ]] || die "output directory must be outside albums directory"

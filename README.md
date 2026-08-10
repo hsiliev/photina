@@ -10,17 +10,15 @@ albums directory.
 # Uses /mnt/gallery/photos, /mnt/gallery/dist, and /mnt/gallery/thumbnails
 ./generate-gallery.sh
 
-# Or override the defaults positionally
-./generate-gallery.sh /photos/albums ./gallery-site /photos/gallery-thumbnails
 ```
 
 The default directories and thumbnail dimensions are configured in
 `photina.conf` with `ALBUMS_DIR`, `OUTPUT_DIR`, `THUMBNAILS_DIR`, and
-`THUMBNAIL_SIZE`. It also controls Caddy generation through `CADDYFILE`,
+`THUMBNAIL_SIZE`. It also controls Caddy generation through `CADDYFILE`
+(defaulting to `/etc/caddy/Caddyfile`),
 `ADMIN_PASSWORD`, `GUEST_PASSWORD`, and the quoted `GUEST_ALBUMS` Bash array.
 Passwords are hashed through Caddy when the gallery is generated. Keep
-`photina.conf` private. Positional arguments override the configured
-directories. Set `PHOTINA_CONFIG` to use a different config file.
+`photina.conf` private. Set `PHOTINA_CONFIG` to use a different config file.
 
 The generated Caddy configuration is merged into the configured `CADDYFILE`
 between `PHOTINA MANAGED` markers. Existing configuration outside those
