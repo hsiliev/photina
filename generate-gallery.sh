@@ -42,6 +42,7 @@ caddy_port=${PORT:-80}
 [[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
 [[ -n "${OUTPUT_DIR:-}" ]] || die "OUTPUT_DIR must be set in $config_file"
 [[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
+metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
 output_dir=$(realpath -m -- "$OUTPUT_DIR")
@@ -51,6 +52,7 @@ printf 'Configured directories:\n'
 printf '  ALBUMS_DIR: %s\n' "$albums_dir"
 printf '  OUTPUT_DIR: %s\n' "$output_dir"
 printf '  THUMBNAILS_DIR: %s\n' "$thumbs_dir"
+printf '  METADATA_DIR: %s\n' "$metadata_dir"
 printf '  CADDYFILE: %s\n' "$caddyfile"
 
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
@@ -59,7 +61,7 @@ printf '  CADDYFILE: %s\n' "$caddyfile"
 
 command -v find >/dev/null || die "find is required"
 command -v realpath >/dev/null || die "realpath is required"
-command -v exiftool >/dev/null || die "exiftool is required to read image metadata"
+command -v jq >/dev/null || die "jq is required to read image metadata"
 command -v caddy >/dev/null || die "caddy is required to hash passwords and update $caddyfile"
 command -v sudo >/dev/null || die "sudo is required to set ownership and permissions on $caddyfile"
 command -v systemctl >/dev/null || die 'systemctl is required to reload caddy'
@@ -69,7 +71,7 @@ source "$script_dir/lib/gallery.sh"
 # shellcheck source=lib/caddy.sh
 source "$script_dir/lib/caddy.sh"
 
-generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$thumbnail_size" "$thumbnail_display_mode"
+generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$thumbnail_display_mode"
 generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$output_dir" "$thumbs_dir" \
   "$caddy_host" "$caddy_port" "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
 sudo chown caddy:caddy -- "$caddyfile"

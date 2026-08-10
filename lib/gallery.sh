@@ -23,13 +23,15 @@ gallery_js_escape() {
   printf '%s' "$value"
 }
 
-gallery_exif_value() {
-  local tag=$1 source=$2
-  exiftool -s3 -n "-$tag" -- "$source" 2>/dev/null || true
+gallery_metadata_value() {
+  local tag=$1 metadata=$2
+  jq -r --arg tag "$tag" \
+    '.[0] | to_entries[] | select(.key == $tag or (.key | endswith(":" + $tag))) | .value // empty | tostring' \
+    -- "$metadata" 2>/dev/null | head -n 1
 }
 
-gallery_exif_description() {
-  local source=$1 value description='' map_url latitude longitude
+gallery_metadata_description() {
+  local metadata=$1 value description='' map_url latitude longitude
   local -a exif_fields=(
     'Description:Description'
     'Date:DateTimeOriginal'
@@ -45,13 +47,13 @@ gallery_exif_description() {
   for field in "${exif_fields[@]}"; do
     label=${field%%:*}
     tag=${field#*:}
-    value=$(gallery_exif_value "$tag" "$source")
+    value=$(gallery_metadata_value "$tag" "$metadata")
     [[ -n "$value" ]] || continue
     description+="<div><strong>$(gallery_html_escape "$label"):</strong> $(gallery_html_escape "$value")</div>"
   done
 
-  latitude=$(gallery_exif_value GPSLatitude "$source")
-  longitude=$(gallery_exif_value GPSLongitude "$source")
+  latitude=$(gallery_metadata_value GPSLatitude "$metadata")
+  longitude=$(gallery_metadata_value GPSLongitude "$metadata")
   if [[ -n "$latitude" && -n "$longitude" ]]; then
     map_url="https://www.openstreetmap.org/?mlat=$(gallery_url_escape_path "$latitude")&mlon=$(gallery_url_escape_path "$longitude")#map=15/$latitude/$longitude"
     description+="<div><a href=\"$(gallery_html_escape "$map_url")\" target=\"_blank\" rel=\"noopener\">View map</a></div>"
@@ -114,8 +116,8 @@ gallery_find_child_albums() {
 }
 
 gallery_render_album() {
-  local album_dir=$1 album_rel=$2 thumbs_dir=$3 output_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
-  local album_name source relative thumb_path medium_path web_video_path media_url medium_url thumb_url title description child child_name
+  local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
+  local album_name source relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url title description child child_name
   local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
   local -a sources=() preview_sources=()
 
@@ -164,7 +166,9 @@ gallery_render_album() {
       thumb_url=$(realpath --relative-to="$output_dir" "$thumb_path")
       thumb_url=$(gallery_url_escape_path "$thumb_url")
       title=${relative##*/}; title=${title%.*}
-      description=$(gallery_exif_description "$source")
+      metadata_path="$metadata_dir/$album_rel/$relative.json"
+      description=''
+      [[ -f "$metadata_path" ]] && description=$(gallery_metadata_description "$metadata_path")
       viewer_url=$medium_url
       if gallery_needs_web_video "$source"; then
         web_video_path="${thumb_path%.webp}.web.mp4"
@@ -190,14 +194,14 @@ gallery_render_album() {
 
   while IFS= read -r -d '' child; do
     child_name=${child%/}; child_name=${child_name##*/}
-    gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$output_dir" \
+    gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode"
   done < <(gallery_find_child_albums "$album_dir")
   gallery_print_template album-end.html
 }
 
 generate_gallery() {
-  local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
+  local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 metadata_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
   local index_tmp index_template fragment_dir fragment_tmp album_path album_name album_index album_list
   local backup_dir old_entry
   gallery_next_id=0
@@ -205,7 +209,9 @@ generate_gallery() {
 
   echo "Generating gallery in $output_dir"
   mkdir -p -- "$output_dir"
-  backup_dir=$(mktemp -d "$output_dir/.photina-backup.XXXXXX")
+  backup_dir="$output_dir/backup"
+  [[ ! -e "$backup_dir" ]] || die "gallery backup directory already exists: $backup_dir"
+  mkdir -- "$backup_dir"
   echo "Backing up existing gallery files to $backup_dir"
   while IFS= read -r -d '' old_entry; do
     mv -- "$old_entry" "$backup_dir/"
@@ -222,7 +228,7 @@ generate_gallery() {
     album_name=${album_path%/}; album_name=${album_name##*/}
     echo "Generating album fragment: $album_name"
     fragment_tmp=$(mktemp "$fragment_dir/.album-XXXXXX")
-    gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$output_dir" \
+    gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" >"$fragment_tmp"
     mv -f -- "$fragment_tmp" "$fragment_dir/album-$album_index.html"
     [[ -n "$album_list" ]] && album_list+=,

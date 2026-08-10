@@ -16,7 +16,7 @@ sudo apt-get update
 
 echo 'Installing gallery dependencies'
 sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  bash findutils coreutils sudo imagemagick libimage-exiftool-perl ffmpeg ffmpegthumbnailer curl gnupg \
+  bash findutils coreutils sudo imagemagick libimage-exiftool-perl jq ffmpeg ffmpegthumbnailer curl gnupg \
   ca-certificates debian-keyring debian-archive-keyring apt-transport-https
 
 if ! apt-cache policy caddy | grep -q '^  Candidate: [^ (]'; then
