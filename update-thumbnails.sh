@@ -31,13 +31,32 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 command -v find >/dev/null || die 'find is required'
 command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
-command -v sudo >/dev/null || die 'sudo is required to grant Caddy access'
+command -v sudo >/dev/null || die 'sudo is required to check Caddy access'
 
 output_dir=$(realpath -m -- "${OUTPUT_DIR:-/mnt/gallery/dist}")
 
+check_caddy_access() {
+  local path current
+  local -a access_paths=("$albums_dir" "$thumbs_dir" "$output_dir")
+
+  echo 'Checking Caddy access to gallery directories'
+  for path in "${access_paths[@]}"; do
+    [[ -d "$path" ]] || continue
+    if sudo -u caddy test -r "$path" -a -x "$path"; then
+      echo "  accessible: $path"
+    else
+      warn "Caddy cannot read/traverse $path"
+    fi
+
+    current=$(dirname -- "$path")
+    while [[ "$current" != / ]]; do
+      sudo -u caddy test -x "$current" || warn "Caddy cannot traverse $current"
+      current=$(dirname -- "$current")
+    done
+  done
+}
+
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
-# shellcheck source=lib/caddy.sh
-source "$script_dir/lib/caddy.sh"
-grant_caddy_access "$albums_dir" "$thumbs_dir" "$output_dir"
+check_caddy_access
 update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$force"

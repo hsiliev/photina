@@ -26,10 +26,8 @@ Thumbnails can be updated independently with:
 ./update-thumbnails.sh
 ```
 
-The update script also grants Caddy read/traverse access to the gallery
-directories using standard permissions. This makes the gallery readable by
-local users as well; use filesystem ACLs or group permissions instead if that
-is not acceptable.
+The update script checks whether Caddy can read and traverse the gallery
+directories and warns when access is missing. It does not modify permissions.
 
 To regenerate every thumbnail, including existing ones, run:
 
@@ -52,6 +50,9 @@ thumbnails remain in the separate thumbnail directory. Keep the thumbnail
 directory at the same relative location when deploying, because the HTML
 references it directly. The page loads nanogallery2 and jQuery from their
 CDNs.
+
+The gallery initially shows the album list. Select an album to expand it and
+view its images.
 
 Thumbnail generation can be interrupted and resumed. Completed thumbnails
 remain at their final `.jpg` paths and are skipped on subsequent runs;

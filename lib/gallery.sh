@@ -45,7 +45,7 @@ generate_gallery() {
         -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.mkv' -o -iname '*.webm' \
         -o -iname '*.avi' -o -iname '*.mpeg' -o -iname '*.mpg' -o -iname '*.ts' -o -iname '*.mts' \) -print0 | sort -z)
 
-      printf '  <section class="album"><h2>%s</h2>\n' "$(gallery_html_escape "$album_name")"
+      printf '  <details class="album"><summary>%s</summary>\n' "$(gallery_html_escape "$album_name")"
       printf "    <div data-nanogallery2='{\"thumbnailHeight\":%s,\"thumbnailWidth\":%s,\"thumbnailLabel\":{\"display\":true},\"viewerTools\":{\"topLeft\":\"label\"}}'>\n" "$thumbnail_size" "$thumbnail_size"
       for source in "${sources[@]}"; do
         relative=${source#"$album_path"}; relative=${relative#/}
@@ -58,7 +58,7 @@ generate_gallery() {
           "$(gallery_html_escape "$media_url")" "$(gallery_html_escape "$thumb_url")" \
           "$(gallery_html_escape "$title")" "$(gallery_html_escape "$title")"
       done
-      printf '    </div></section>\n'
+      printf '    </div></details>\n'
     done
     (( album_found )) || printf '  <p>No albums found.</p>\n'
     printf '%s' "$index_tail"
