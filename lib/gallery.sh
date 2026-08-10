@@ -67,5 +67,5 @@ generate_gallery() {
   mv -f -- "$index_tmp" "$output_dir/index.html"
   trap - EXIT
   echo 'Gallery generation complete'
-  printf 'Gallery written to %s\nThumbnails written to %s\n' "$output_dir/index.html" "$thumbs_dir"
+  printf 'Gallery written to %s\n' "$output_dir/index.html"
 }

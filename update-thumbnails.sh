@@ -33,29 +33,11 @@ command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
 command -v sudo >/dev/null || die 'sudo is required to grant Caddy access'
 
-grant_caddy_access() {
-  local path current
-  local -a access_paths=("$albums_dir" "$thumbs_dir")
-  [[ -d "$output_dir" ]] && access_paths+=("$output_dir")
-
-  for path in "${access_paths[@]}"; do
-    current=$path
-    while [[ "$current" != / ]]; do
-      sudo chmod a+x -- "$current"
-      current=$(dirname -- "$current")
-    done
-    sudo chmod -R a+rX -- "$path"
-  done
-
-  current=$(dirname -- "$output_dir")
-  if [[ -d "$current" ]]; then
-    sudo chmod a+rx -- "$current"
-  fi
-}
-
 output_dir=$(realpath -m -- "${OUTPUT_DIR:-/mnt/gallery/dist}")
 
 # shellcheck source=/dev/null
 source "$script_dir/lib/thumbnails.sh"
+# shellcheck source=/dev/null
+source "$script_dir/lib/caddy.sh"
 update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$force"
-grant_caddy_access
+grant_caddy_access "$albums_dir" "$thumbs_dir" "$output_dir"

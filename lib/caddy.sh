@@ -1,5 +1,28 @@
 #!/usr/bin/env bash
 
+grant_caddy_access() {
+  local albums_dir=$1 thumbs_dir=$2 output_dir=$3
+  local path current
+  local -a access_paths=("$albums_dir" "$thumbs_dir")
+
+  echo 'Granting Caddy access to gallery directories'
+  [[ -d "$output_dir" ]] && access_paths+=("$output_dir")
+
+  for path in "${access_paths[@]}"; do
+    current=$path
+    while [[ "$current" != / ]]; do
+      sudo chmod a+x -- "$current"
+      current=$(dirname -- "$current")
+    done
+    sudo chmod -R a+rX -- "$path"
+  done
+
+  current=$(dirname -- "$output_dir")
+  if [[ -d "$current" ]]; then
+    sudo chmod a+rx -- "$current"
+  fi
+}
+
 generate_caddyfile() {
   local script_dir=$1 caddyfile=$2 albums_dir=$3 output_dir=$4 thumbs_dir=$5
   local admin_password=$6 guest_password=$7

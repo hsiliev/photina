@@ -63,5 +63,6 @@ source "$script_dir/lib/caddy.sh"
 generate_gallery "$script_dir" "$albums_dir" "$output_dir" "$thumbs_dir" "$thumbnail_size"
 generate_caddyfile "$script_dir" "$caddyfile" "$albums_dir" "$output_dir" "$thumbs_dir" \
   "$ADMIN_PASSWORD" "$GUEST_PASSWORD" "${GUEST_ALBUMS[@]}"
+grant_caddy_access "$albums_dir" "$thumbs_dir" "$output_dir"
 sudo chown caddy:caddy -- "$caddyfile"
 sudo chmod 644 -- "$caddyfile"
