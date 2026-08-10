@@ -27,6 +27,7 @@ gallery_make_thumbnail() {
   local processed_tmp=${thumbnail%.jpg}.generated.jpg
   local ready_tmp
 
+  printf '\t%s\n' "$source"
   mkdir -p -- "$(dirname -- "$thumbnail")"
   if gallery_is_video "$source"; then
     ffmpegthumbnailer -i "$source" -o "$thumbnail_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
@@ -92,7 +93,6 @@ generate_gallery() {
         relative=${source#"$album_path"}; relative=${relative#/}
         thumb_path="$thumbs_dir/$album_name/$relative.jpg"
         if [[ ! -f "$thumb_path" ]]; then
-          printf '\t%s\n' "$source"
           gallery_make_thumbnail "$source" "$thumb_path" "$thumbnail_size" "$image_tool" &
           thumbnail_pids+=("$!")
           while (( ${#thumbnail_pids[@]} >= parallel_jobs )); do
