@@ -23,6 +23,43 @@ gallery_js_escape() {
   printf '%s' "$value"
 }
 
+gallery_exif_value() {
+  local tag=$1 source=$2
+  exiftool -s3 -n "-$tag" -- "$source" 2>/dev/null || true
+}
+
+gallery_exif_description() {
+  local source=$1 value description='' map_url latitude longitude
+  local -a exif_fields=(
+    'Description:Description'
+    'Date:DateTimeOriginal'
+    'Camera:Model'
+    'Lens:LensModel'
+    'Exposure:ExposureTime'
+    'Aperture:FNumber'
+    'ISO:ISO'
+    'Focal length:FocalLength'
+  )
+  local field label tag
+
+  for field in "${exif_fields[@]}"; do
+    label=${field%%:*}
+    tag=${field#*:}
+    value=$(gallery_exif_value "$tag" "$source")
+    [[ -n "$value" ]] || continue
+    description+="<div><strong>$(gallery_html_escape "$label"):</strong> $(gallery_html_escape "$value")</div>"
+  done
+
+  latitude=$(gallery_exif_value GPSLatitude "$source")
+  longitude=$(gallery_exif_value GPSLongitude "$source")
+  if [[ -n "$latitude" && -n "$longitude" ]]; then
+    map_url="https://www.openstreetmap.org/?mlat=$(gallery_url_escape_path "$latitude")&mlon=$(gallery_url_escape_path "$longitude")#map=15/$latitude/$longitude"
+    description+="<div><a href=\"$(gallery_html_escape "$map_url")\" target=\"_blank\" rel=\"noopener\">View map</a></div>"
+  fi
+
+  printf '%s' "$description"
+}
+
 gallery_is_video() {
   local extension=${1##*.}
   extension=${extension,,}
@@ -78,7 +115,7 @@ gallery_find_child_albums() {
 
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 output_dir=$4 thumbnail_size=$5 thumbnail_display_mode=$6
-  local album_name source relative thumb_path medium_path web_video_path media_url medium_url thumb_url title child child_name
+  local album_name source relative thumb_path medium_path web_video_path media_url medium_url thumb_url title description child child_name
   local preview_source preview_relative preview_thumb_path preview_url gallery_id item_index viewer_url child_count
   local -a sources=() preview_sources=()
 
@@ -127,6 +164,7 @@ gallery_render_album() {
       thumb_url=$(realpath --relative-to="$output_dir" "$thumb_path")
       thumb_url=$(gallery_url_escape_path "$thumb_url")
       title=${relative##*/}; title=${title%.*}
+      description=$(gallery_exif_description "$source")
       viewer_url=$medium_url
       if gallery_needs_web_video "$source"; then
         web_video_path="${thumb_path%.webp}.web.mp4"
@@ -134,10 +172,17 @@ gallery_render_album() {
         viewer_url=$(gallery_url_escape_path "$viewer_url")
       fi
       (( item_index > 0 )) && printf ','
-      gallery_print_template item.html \
-        "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-        "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-        "$(gallery_js_escape "$title")"
+      if [[ -n "$description" ]]; then
+        gallery_print_template item-with-description.html \
+          "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
+          "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+          "$(gallery_js_escape "$title")" "$(gallery_js_escape "$description")"
+      else
+        gallery_print_template item.html \
+          "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
+          "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
+          "$(gallery_js_escape "$title")"
+      fi
       item_index=$((item_index + 1))
     done
     gallery_print_template items-end.html

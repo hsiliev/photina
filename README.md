@@ -18,6 +18,7 @@ example configuration uses:
 ALBUMS_DIR=/mnt/gallery/albums
 OUTPUT_DIR=/mnt/gallery/dist
 THUMBNAILS_DIR=/mnt/gallery/thumbnails
+METADATA_DIR=/mnt/gallery/metadata
 MEDIUM_SIZE=1600
 ```
 
@@ -51,6 +52,8 @@ H.264/AAC MP4 playback copies; the original video remains available for
 download.
 
 Each image can be downloaded in its original form.
+When available, the viewer shows EXIF camera details and a link to the image
+location on OpenStreetMap. Metadata is stored as JSON under `METADATA_DIR`.
 
 `generate-gallery.sh` creates the gallery and updates the Caddy configuration,
 then reloads Caddy.

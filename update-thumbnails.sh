@@ -23,6 +23,7 @@ fi
 
 [[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
 [[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
+metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 thumbnail_size=${THUMBNAIL_SIZE:-250}
 [[ "$thumbnail_size" =~ ^[1-9][0-9]*$ ]] || die 'THUMBNAIL_SIZE must be a positive integer'
 medium_size=${MEDIUM_SIZE:-1600}
@@ -30,10 +31,12 @@ medium_size=${MEDIUM_SIZE:-1600}
 
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
 thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
+printf 'Configured metadata directory: %s\n' "$metadata_dir"
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
 command -v find >/dev/null || die 'find is required'
 command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
+command -v exiftool >/dev/null || die 'exiftool is required to write metadata'
 command -v ffmpeg >/dev/null || die 'ffmpeg is required to create browser-compatible videos'
 command -v sudo >/dev/null || die 'sudo is required to check Caddy access'
 
@@ -63,4 +66,4 @@ check_caddy_access() {
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
 check_caddy_access
-update_thumbnails "$albums_dir" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$force"
+update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$medium_size" "$force"

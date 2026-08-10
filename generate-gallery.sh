@@ -59,6 +59,7 @@ printf '  CADDYFILE: %s\n' "$caddyfile"
 
 command -v find >/dev/null || die "find is required"
 command -v realpath >/dev/null || die "realpath is required"
+command -v exiftool >/dev/null || die "exiftool is required to read image metadata"
 command -v caddy >/dev/null || die "caddy is required to hash passwords and update $caddyfile"
 command -v sudo >/dev/null || die "sudo is required to set ownership and permissions on $caddyfile"
 command -v systemctl >/dev/null || die 'systemctl is required to reload caddy'
