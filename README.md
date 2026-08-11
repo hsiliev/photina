@@ -26,10 +26,6 @@ Image and video extensions can also be adjusted in `photina.conf`.
 `HOST` and `PORT` default to `localhost` and `443`; set them in the environment
 to override those defaults.
 
-Updating thumbnails also writes an `md5sums.txt` manifest for each album under
-the configured metadata directory. Each manifest contains checksums for the
-album's images and videos, using paths relative to that album.
-
 Keep the passwords in `photina.conf` private.
 
 To limit guest access, add album paths to `GUEST_ALBUMS`. Nested album paths
@@ -121,7 +117,30 @@ To recreate only one gallery:
 ./generate-guest-gallery.sh
 ```
 
-## Gallery behavior
+## Duplicate management
+
+Thumbnail updates create an `md5sums.txt` manifest for each album under the
+configured metadata directory. The manifests contain checksums for the
+album's images and videos, using paths relative to that album.
+
+To check all manifests for duplicate files, run:
+
+```bash
+./check-duplicates.sh
+```
+
+The command exits with status 1 when duplicates are found.
+
+To replace duplicate media with hard links to the first file and link their
+generated thumbnails, medium images, and metadata, run:
+
+```bash
+./eliminate-duplicates.sh
+```
+
+The source and destination paths must be on the same filesystem.
+
+## Gallery behaviour
 
 The gallery starts with the album list. Select an album to view its media;
 nested folders appear as nested albums. 
