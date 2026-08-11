@@ -172,7 +172,6 @@ thumbnail_batch_metadata() {
     return 1
   fi
 
-  local metadata_count=0
   while IFS= read -r -d '' source && IFS= read -r -d '' record; do
     relative=${source#"$album_path"}; relative=${relative#/}
     metadata="$metadata_dir/$album_name/$relative.json"
@@ -180,10 +179,8 @@ thumbnail_batch_metadata() {
     mkdir -p -- "$(dirname -- "$metadata")"
     printf '[%s]\n' "$record" >"$metadata_tmp"
     mv -f -- "$metadata_tmp" "$metadata"
-    metadata_count=$((metadata_count + 1))
   done <"$records_tmp"
   rm -f -- "$batch_tmp" "$records_tmp"
-  printf '\tMetadata: wrote %d records for %s\n' "$metadata_count" "$album_name"
 }
 
 thumbnail_generate_checksums() {
