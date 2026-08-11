@@ -193,6 +193,7 @@ thumbnail_generate_checksums() {
 
   checksum_file="$metadata_dir/$album_name/md5sums.txt"
   checksum_tmp="$checksum_file.generating"
+  printf '\tChecksums: starting for %s\n' "$album_name"
   mkdir -p -- "$(dirname -- "$checksum_file")"
   while IFS= read -r -d '' source; do
     relative=${source#"$album_path"}; relative=${relative#/}
@@ -210,7 +211,7 @@ thumbnail_generate_checksums() {
     : >"$checksum_tmp"
   fi
   mv -f -- "$checksum_tmp" "$checksum_file"
-  printf '\tChecksums: wrote %d records for %s\n' "$checksum_count" "$album_name"
+  printf '\tChecksums: completed for %s (%d records)\n' "$album_name" "$checksum_count"
 }
 
 update_thumbnails() {
