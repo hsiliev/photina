@@ -140,6 +140,20 @@ generated thumbnails, medium images, and metadata, run:
 
 The source and destination paths must be on the same filesystem.
 
+## Organizing images
+
+To organize images in an album into year directories using their EXIF dates,
+run:
+
+```bash
+./split-by-year.sh /mnt/gallery/album/Flowers
+```
+
+The script reads `DateTimeOriginal` first, then creation-date EXIF tags. It
+processes images directly inside the supplied directory, leaves images without
+a usable year in place, and overwrites same-named files already in a year
+directory.
+
 ## Gallery behaviour
 
 The gallery starts with the album list. Select an album to view its media;
