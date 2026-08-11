@@ -3,6 +3,8 @@
 Photina creates a browsable photo and video gallery from folders of media.
 Albums can contain nested albums.
 
+Directory-first, [nanogallery](https://nanogallery2.nanostudio.org/) based, static-site generator. Supports images, videos, EXIF metadata, album sharing.
+
 ## Configure
 
 On Ubuntu, install the required tools with:
