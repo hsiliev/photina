@@ -32,6 +32,7 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 printf 'Configured metadata directory: %s\n' "$metadata_dir"
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
 command -v find >/dev/null || die 'find is required'
+command -v md5sum >/dev/null || die 'md5sum is required to generate checksums'
 command -v realpath >/dev/null || die 'realpath is required'
 command -v ffmpegthumbnailer >/dev/null || die 'ffmpegthumbnailer is required'
 command -v exiftool >/dev/null || die 'exiftool is required to write metadata'

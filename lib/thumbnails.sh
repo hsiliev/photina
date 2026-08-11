@@ -186,6 +186,33 @@ thumbnail_batch_metadata() {
   printf '\tMetadata: wrote %d records for %s\n' "$metadata_count" "$album_name"
 }
 
+thumbnail_generate_checksums() {
+  local album_path=$1 album_name=$2 metadata_dir=$3
+  local source relative checksum_file checksum_tmp checksum_count=0
+  local -a relative_sources=()
+
+  checksum_file="$metadata_dir/$album_name/md5sums.txt"
+  checksum_tmp="$checksum_file.generating"
+  mkdir -p -- "$(dirname -- "$checksum_file")"
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_path"}; relative=${relative#/}
+    relative_sources+=("$relative")
+    checksum_count=$((checksum_count + 1))
+  done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+
+  if ((${#relative_sources[@]})); then
+    if ! printf '%s\0' "${relative_sources[@]}" |
+      (cd -- "$album_path" && xargs -0 -r md5sum --) >"$checksum_tmp"; then
+      rm -f -- "$checksum_tmp"
+      return 1
+    fi
+  else
+    : >"$checksum_tmp"
+  fi
+  mv -f -- "$checksum_tmp" "$checksum_file"
+  printf '\tChecksums: wrote %d records for %s\n' "$checksum_count" "$album_name"
+}
+
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
@@ -193,7 +220,7 @@ update_thumbnails() {
   local thumbnail stale_relative
   local metadata stale_metadata_relative
   local found_media
-  declare -A expected_thumbnails=() expected_metadata=()
+  declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
 
   if command -v magick >/dev/null; then
     image_tool=magick
@@ -231,10 +258,13 @@ update_thumbnails() {
         fi
       done < <(thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct | sort -z)
       ((found_media)) || continue
+      expected_checksums["$metadata_dir/$album_name/md5sums.txt"]=1
       echo "Scanning album: $album_name"
       if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$display_mode" \
         && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$display_mode"; then
-        thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" || thumbnail_failed=1
+        thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" \
+          && thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" \
+          || thumbnail_failed=1
       else
         thumbnail_failed=1
       fi
@@ -255,6 +285,13 @@ update_thumbnails() {
     printf '\tRemoving stale metadata: %s\n' "$stale_metadata_relative"
     rm -f -- "$metadata"
   done < <(find -P "$metadata_dir" -type f -name '*.json' -print0)
+
+  while IFS= read -r -d '' checksum_file; do
+    [[ -n ${expected_checksums["$checksum_file"]+present} ]] && continue
+    stale_relative=${checksum_file#"$metadata_dir"/}
+    printf '\tRemoving stale checksum manifest: %s\n' "$stale_relative"
+    rm -f -- "$checksum_file"
+  done < <(find -P "$metadata_dir" -type f -name 'md5sums.txt' -print0)
 
   echo 'Thumbnail update complete'
 }

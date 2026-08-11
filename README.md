@@ -26,6 +26,10 @@ Image and video extensions can also be adjusted in `photina.conf`.
 `HOST` and `PORT` default to `localhost` and `443`; set them in the environment
 to override those defaults.
 
+Updating thumbnails also writes an `md5sums.txt` manifest for each album under
+the configured metadata directory. Each manifest contains checksums for the
+album's images and videos, using paths relative to that album.
+
 Keep the passwords in `photina.conf` private.
 
 To limit guest access, add album paths to `GUEST_ALBUMS`. Nested album paths
