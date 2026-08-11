@@ -214,6 +214,37 @@ thumbnail_generate_checksums() {
   printf '\tChecksums: completed for %s (%d records)\n' "$album_name" "$checksum_count"
 }
 
+thumbnail_checksums_need_update() {
+  local album_path=$1 album_name=$2 metadata_dir=$3
+  local checksum_file=$metadata_dir/$album_name/md5sums.txt
+  local line relative source current_count=0 manifest_count=0
+  local -A manifest_sources=()
+
+  [[ -f "$checksum_file" ]] || return 0
+
+  while IFS= read -r line; do
+    [[ ${#line} -ge 34 ]] || return 0
+    relative=${line:34}
+    [[ -n "$relative" ]] || return 0
+    manifest_sources["$relative"]=1
+    manifest_count=$((manifest_count + 1))
+  done <"$checksum_file"
+
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_path"}; relative=${relative#/}
+    [[ -n ${manifest_sources["$relative"]+present} ]] || return 0
+    current_count=$((current_count + 1))
+  done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+
+  ((current_count == manifest_count)) || return 0
+
+  while IFS= read -r -d '' source; do
+    [[ "$source" -nt "$checksum_file" ]] && return 0
+  done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+
+  return 1
+}
+
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
@@ -263,9 +294,15 @@ update_thumbnails() {
       echo "Scanning album: $album_name"
       if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$display_mode" \
         && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$display_mode"; then
-        thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" \
-          && thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" \
-          || thumbnail_failed=1
+        if thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir"; then
+          if thumbnail_checksums_need_update "$album_path" "$album_name" "$metadata_dir"; then
+            thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" || thumbnail_failed=1
+          else
+            printf '\tChecksums: unchanged for %s (skipped)\n' "$album_name"
+          fi
+        else
+          thumbnail_failed=1
+        fi
       else
         thumbnail_failed=1
       fi
