@@ -1,9 +1,4 @@
 __CADDY_HOST__:__CADDY_PORT__, www.__CADDY_HOST__:__CADDY_PORT__ {
-	log {
-		output file /var/log/caddy/access.log
-		format console
-	}
-
 	route {
 		basic_auth {
 			admin __ADMIN_PASSWORD_HASH__
