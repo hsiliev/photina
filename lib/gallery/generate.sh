@@ -36,7 +36,7 @@ thumbnail_display_mode=${THUMBNAIL_DISPLAY_MODE:-cascading}
 
 caddyfile=${CADDYFILE:-/etc/caddy/Caddyfile}
 caddy_host=${HOST:-localhost}
-caddy_port=${PORT:-80}
+caddy_port=${PORT:-443}
 [[ "$caddy_host" =~ ^[A-Za-z0-9.-]+$ ]] || die "HOST must be a hostname"
 [[ "$caddy_port" =~ ^[1-9][0-9]*$ && "$caddy_port" -le 65535 ]] || die "PORT must be between 1 and 65535"
 [[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD must be set in $config_file"

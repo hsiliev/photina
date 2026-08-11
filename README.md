@@ -23,7 +23,7 @@ MEDIUM_SIZE=1600
 ```
 
 Image and video extensions can also be adjusted in `photina.conf`.
-`HOST` and `PORT` default to `localhost` and `80`; set them in the environment
+`HOST` and `PORT` default to `localhost` and `443`; set them in the environment
 to override those defaults.
 
 Keep the passwords in `photina.conf` private.

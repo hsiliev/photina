@@ -1,4 +1,4 @@
-__CADDY_HOST__:__CADDY_PORT__, www.__CADDY_HOST__:__CADDY_PORT__ {
+__CADDY_HOST__:__CADDY_PORT__ {
 	route {
 		basic_auth {
 			admin __ADMIN_PASSWORD_HASH__
