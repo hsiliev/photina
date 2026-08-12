@@ -49,6 +49,13 @@ gallery_render_album() {
     gallery_print_template album-leaf.html "$(gallery_html_escape "$album_name")"
   fi
 
+  while IFS= read -r -d '' child; do
+    child_name=${child%/}; child_name=${child_name##*/}
+    gallery_album_is_visible "$album_rel/$child_name" || continue
+    gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$metadata_dir" \
+      "$output_dir" "$thumbnail_size" "$thumbnail_display_mode"
+  done < <(gallery_find_child_albums "$album_dir")
+
   if ((${#sources[@]})); then
     gallery_next_id=$((gallery_next_id + 1))
     gallery_id="gallery-$gallery_next_id"
@@ -63,12 +70,6 @@ gallery_render_album() {
     gallery_print_template items-end.html
   fi
 
-  while IFS= read -r -d '' child; do
-    child_name=${child%/}; child_name=${child_name##*/}
-    gallery_album_is_visible "$album_rel/$child_name" || continue
-    gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$metadata_dir" \
-      "$output_dir" "$thumbnail_size" "$thumbnail_display_mode"
-  done < <(gallery_find_child_albums "$album_dir")
   gallery_print_template album-end.html
 }
 
