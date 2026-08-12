@@ -5,6 +5,8 @@ Albums can contain nested albums.
 
 Directory-first, [nanogallery](https://nanogallery2.nanostudio.org/) based, static-site generator. Supports images, videos, EXIF metadata, album sharing.
 
+Photina can be co-hosted with other projects like [Hermes](https://github.com/hsiliev/hermes), or run independently.
+
 ## Configure
 
 On Ubuntu, install the required tools with:
@@ -13,8 +15,10 @@ On Ubuntu, install the required tools with:
 ./install-dependencies.sh
 ```
 
-Edit `photina.conf` and set the folders, Caddy address, and passwords. The
-example configuration uses:
+The installer creates `/etc/photina/photina.conf` from
+`templates/photina.conf.template` if that file does not already exist. Edit
+`/etc/photina/photina.conf` and set the
+folders, Caddy address, and passwords. The example configuration uses:
 
 ```bash
 ALBUMS_DIR=/mnt/gallery/albums
@@ -24,11 +28,11 @@ METADATA_DIR=/mnt/gallery/metadata
 MEDIUM_SIZE=1600
 ```
 
-Image and video extensions can also be adjusted in `photina.conf`.
-`HOST` and `PORT` default to `localhost` and `443`; set them in the environment
-to override those defaults.
+Image and video extensions can also be adjusted in
+`/etc/photina/photina.conf`. `HOST` and `PORT` default to `localhost` and `443`;
+set them in the configuration to override those defaults.
 
-Keep the passwords in `photina.conf` private.
+Keep the passwords in `/etc/photina/photina.conf` private.
 
 To limit guest access, add album paths to `GUEST_ALBUMS`. Nested album paths
 are supported, for example:
@@ -48,7 +52,7 @@ Photina generates two independent gallery outputs:
 
 Opening the site root redirects an authenticated admin to `/admin/` and an
 authenticated guest to `/guest/`. Guests only see the albums listed in
-`GUEST_ALBUMS` in `photina.conf`; nested paths are supported:
+`GUEST_ALBUMS` in `/etc/photina/photina.conf`; nested paths are supported:
 
 ```bash
 GUEST_ALBUMS=(
@@ -89,10 +93,17 @@ To generate only one gallery, use:
 ./generate-guest-gallery.sh
 ```
 
+To update only the managed Caddy configuration, without regenerating gallery
+output:
+
+```bash
+./update-caddy.sh
+```
+
 
 ## Recreate generated data
 
-Check `photina.conf` before deleting anything and make sure the configured
+Check `/etc/photina/photina.conf` before deleting anything and make sure the configured
 paths contain generated data only.
 
 To recreate all thumbnails and metadata, delete the configured thumbnail and metadata directories before updating:

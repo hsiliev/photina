@@ -2,13 +2,13 @@
 set -Eeuo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-config_file=${PHOTINA_CONFIG:-$script_dir/photina.conf}
+config_file=${PHOTINA_CONFIG:-/etc/photina/photina.conf}
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 [[ $# -eq 0 ]] || die 'usage: delete-all-thumbnails-and-metadata.sh'
 [[ -f "$config_file" ]] || die "configuration file does not exist: $config_file"
 
-# shellcheck source=photina.conf
+# shellcheck source=/etc/photina/photina.conf
 # shellcheck disable=SC1091
 source "$config_file"
 thumbnails_dir=$(realpath -m -- "${THUMBNAILS_DIR:-/mnt/gallery/thumbnails}")

@@ -10,7 +10,7 @@ HOST=${HOST:-localhost}
 PORT=${PORT:-443}
 
 # Plaintext passwords are hashed by the gallery generators and are never written
-# to Caddyfile. Keep this file private (chmod 600 photina.conf).
+# to Caddyfile. Keep this file private (chmod 600 /etc/photina/photina.conf).
 ADMIN_PASSWORD=admin
 GUEST_PASSWORD=guest
 

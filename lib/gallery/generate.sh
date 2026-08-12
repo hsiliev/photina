@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-config_file=${PHOTINA_CONFIG:-$script_dir/photina.conf}
+config_file=${PHOTINA_CONFIG:-/etc/photina/photina.conf}
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -13,7 +13,7 @@ config_mode=$((0$config_mode))
 (( (config_mode & 077) == 0 )) || warn "$config_file must be private; run chmod 600 '$config_file'"
 
 GUEST_ALBUMS=()
-# shellcheck source=photina.conf
+# shellcheck source=/etc/photina/photina.conf
 # shellcheck disable=SC1091
 source "$config_file"
 

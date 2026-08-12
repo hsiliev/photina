@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 [[ -r /etc/os-release ]] || die 'cannot identify the operating system'
@@ -31,4 +32,13 @@ fi
 
 echo 'Installing Caddy'
 sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y caddy
+
+if [[ ! -e /etc/photina/photina.conf ]]; then
+  echo 'Installing the default Photina configuration'
+  sudo install -d -m 0755 /etc/photina
+  sudo install -m 0600 "$script_dir/templates/photina.conf.template" /etc/photina/photina.conf
+else
+  echo 'Keeping existing /etc/photina/photina.conf'
+fi
+
 echo 'Dependencies installed'

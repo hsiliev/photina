@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-config_file=${PHOTINA_CONFIG:-$script_dir/photina.conf}
+config_file=${PHOTINA_CONFIG:-/etc/photina/photina.conf}
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 [[ $# -eq 1 ]] || die 'usage: delete-album-thumbnails-and-metadata.sh ALBUM_NAME'
@@ -10,7 +10,7 @@ album_name=$1
 [[ -f "$config_file" ]] || die "configuration file does not exist: $config_file"
 [[ "$album_name" != /* && "$album_name" != . && "$album_name" != .. && "$album_name" != */../* && "$album_name" != ../* && "$album_name" != */.. ]] || die 'album name must stay inside the configured directories'
 
-# shellcheck source=photina.conf
+# shellcheck source=/etc/photina/photina.conf
 # shellcheck disable=SC1091
 source "$config_file"
 thumbnails_dir=$(realpath -m -- "${THUMBNAILS_DIR:-/mnt/gallery/thumbnails}")
