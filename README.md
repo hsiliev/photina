@@ -174,6 +174,15 @@ nested folders appear as nested albums.
 Images within an album are sorted from oldest to newest using their
 `DateTimeOriginal` EXIF value. Images without a usable date appear last.
 
+Album fragments are fetched only when an album is expanded. Gallery sections
+also use browser content virtualization and lazy thumbnail loading so closed
+or off-screen sections do not need to be rendered immediately.
+
+Caddy compresses gallery responses with Zstandard or gzip. Gallery HTML is
+always revalidated, while thumbnails and static assets use long-lived caching.
+Thumbnail URLs include a file timestamp query parameter so regenerated
+thumbnails receive a new cache key safely.
+
 ### Album thumbnails
 To choose an album preview, place an image named `album.jpg` directly in that 
 album’s folder. It is converted to a thumbnail and used instead of the first 

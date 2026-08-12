@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Photo gallery</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nanogallery2/3.0.5/css/nanogallery2.min.css">
-  <style>body{margin:0;padding:2rem;font:16px system-ui,sans-serif;background:#f5f5f5;color:#222}main{max-width:1400px;margin:auto}.album{margin:1rem 0}.album .album{margin-left:1.5rem;padding-left:1rem;border-left:2px solid #ddd}.album summary{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border:1px solid transparent;border-radius:.5rem;background:#fff;cursor:pointer;font-size:1.25rem}.album[open] summary{margin-bottom:1rem}.album-parent-marker{font-weight:700}.album-thumbnail{width:3rem;height:3rem;object-fit:cover}.empty-gallery{text-align:center;margin:5rem auto;color:#666}.empty-gallery-icon{font-size:4rem}.nGY2GThumbnail,.nGY2GThumbnailContainer{box-sizing:border-box}.nGY2PopupContentLeft{box-sizing:border-box;max-width:680px!important;width:calc(100% - 2rem)!important}h1{font-weight:500}</style>
+  <style>body{margin:0;padding:2rem;font:16px system-ui,sans-serif;background:#f5f5f5;color:#222}main{max-width:1400px;margin:auto}.album{margin:1rem 0}.album .album{margin-left:1.5rem;padding-left:1rem;border-left:2px solid #ddd}.album summary{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border:1px solid transparent;border-radius:.5rem;background:#fff;cursor:pointer;font-size:1.25rem}.album[open] summary{margin-bottom:1rem}.album-parent-marker{font-weight:700}.album-thumbnail{width:3rem;height:3rem;object-fit:cover}.photina-gallery{content-visibility:auto;contain-intrinsic-size:0 900px}.empty-gallery{text-align:center;margin:5rem auto;color:#666}.empty-gallery-icon{font-size:4rem}.nGY2GThumbnail,.nGY2GThumbnailContainer{box-sizing:border-box}.nGY2PopupContentLeft{box-sizing:border-box;max-width:680px!important;width:calc(100% - 2rem)!important}h1{font-weight:500}</style>
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/nanogallery2/3.0.5/jquery.nanogallery2.min.js"></script>
 </head>
@@ -26,10 +26,7 @@ if (photinaAlbums.length === 0) {
     if (!response.ok) throw new Error(`Unable to load ${url}: ${response.status}`);
     return document.createRange().createContextualFragment(await response.text());
   };
-  const appendFragment = (container, fragment) => {
-    const scripts = [...fragment.querySelectorAll('script')];
-    container.append(fragment);
-    scripts.forEach(script => {
+  const initializeScripts = scripts => scripts.forEach(script => {
       let initialized = false;
       const initialize = () => {
         if (initialized) return;
@@ -51,9 +48,27 @@ if (photinaAlbums.length === 0) {
         initialize();
       }
     });
+  const appendFragment = (container, fragment) => {
+    const scripts = [...fragment.querySelectorAll('script')];
+    container.append(fragment);
+    initializeScripts(scripts);
+  };
+  const loadInto = async (container, url, unwrapRoot = false, isCurrent = () => true) => {
+    const fragment = await loadFragment(url);
+    if (!isCurrent()) return;
+    if (unwrapRoot) {
+      const root = fragment.querySelector(':scope > details.album');
+      if (root) {
+        const scripts = [...root.querySelectorAll('script')];
+        root.querySelector(':scope > summary')?.remove();
+        while (root.firstChild) container.append(root.firstChild);
+        initializeScripts(scripts);
+        return;
+      }
+    }
+    appendFragment(container, fragment);
   };
   const renderAlbum = async album => {
-    if (!album.children) return {fragment: await loadFragment(album.url)};
     const details = document.createElement('details');
     details.className = 'album';
     const summary = document.createElement('summary');
@@ -62,6 +77,7 @@ if (photinaAlbums.length === 0) {
       const image = document.createElement('img');
       image.className = 'album-thumbnail';
       image.src = album.thumbnail;
+      image.loading = 'lazy';
       image.alt = '';
       summary.append(image);
     }
@@ -73,11 +89,35 @@ if (photinaAlbums.length === 0) {
     summary.append(marker, title);
     const children = document.createElement('div');
     details.append(summary, children);
-    const results = await Promise.allSettled(album.children.map(child => loadFragment(child.url)));
-    results.forEach(result => {
-      if (result.status === 'fulfilled') appendFragment(children, result.value);
+    let loaded = false;
+    let loading = null;
+    let loadGeneration = 0;
+    const loadContents = () => {
+      if (loaded || loading) return loading;
+      const generation = ++loadGeneration;
+      const isCurrent = () => details.open && generation === loadGeneration;
+      loading = album.children
+        ? Promise.allSettled(album.children.map(child => loadInto(children, child.url, false, isCurrent)))
+        : loadInto(children, album.url, true, isCurrent).then(() => []);
+      return loading.then(results => {
+        if (!isCurrent()) return;
+        loaded = true;
+        if (album.children && results.every(result => result.status === 'rejected')) {
+          children.textContent = 'Unable to load this album.';
+        }
+      });
+    };
+    details.addEventListener('toggle', () => {
+      if (details.open) {
+        loadContents();
+      } else {
+        loadGeneration++;
+        children.replaceChildren();
+        loaded = false;
+        loading = null;
+      }
     });
-    if (!children.hasChildNodes()) return null;
+    if (!album.children) return {element: details};
     return {element: details};
   };
   Promise.allSettled(photinaAlbums.map(renderAlbum)).then(results => {

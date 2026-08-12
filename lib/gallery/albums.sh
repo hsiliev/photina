@@ -4,7 +4,7 @@ gallery_album_preview_url() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 output_dir=$5
   local relative preview_url
   relative=${source#"$album_dir"}; relative=${relative#/}
-  preview_url="/thumbnails/$(gallery_url_escape_path "$album_rel/$relative.webp")"
+  preview_url=$(gallery_thumbnail_url "$thumbs_dir/$album_rel/$relative.webp" "$album_rel/$relative.webp")
   gallery_html_escape "$preview_url"
 }
 

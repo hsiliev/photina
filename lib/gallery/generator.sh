@@ -25,7 +25,8 @@ gallery_nested_album_preview_url() {
   if gallery_album_content_is_allowed "$album_name"; then
     while IFS= read -r -d '' preview_source; do
       preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
-      printf '/thumbnails/%s' "$(gallery_url_escape_path "$album_name/$preview_relative.webp")"
+      gallery_thumbnail_url "$thumbs_dir/$album_name/$preview_relative.webp" \
+        "$album_name/$preview_relative.webp"
       return
     done < <(gallery_find_album_cover "$album_path")
   fi
@@ -35,12 +36,14 @@ gallery_nested_album_preview_url() {
     gallery_album_is_visible "$album_name/$preview_child_name" || continue
     while IFS= read -r -d '' preview_source; do
       preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
-      printf '/thumbnails/%s' "$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
+      gallery_thumbnail_url "$thumbs_dir/$album_name/$preview_child_name/$preview_relative.webp" \
+        "$album_name/$preview_child_name/$preview_relative.webp"
       return
     done < <(gallery_find_album_cover "$preview_child")
     while IFS= read -r -d '' preview_source; do
       preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
-      printf '/thumbnails/%s' "$(gallery_url_escape_path "$album_name/$preview_child_name/$preview_relative.webp")"
+      gallery_thumbnail_url "$thumbs_dir/$album_name/$preview_child_name/$preview_relative.webp" \
+        "$album_name/$preview_child_name/$preview_relative.webp"
       return
     done < <(gallery_find_first_media "$preview_child")
   done < <(gallery_find_child_albums "$album_path")
@@ -90,7 +93,8 @@ gallery_generate_leaf_album() {
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   fi
-  gallery_append_album_list_item "$(printf '{"url":"%s/albums/%s"}' "$gallery_output_url_prefix" "$(gallery_url_escape_path "$fragment_rel")")"
+  gallery_append_album_list_item "$(printf '{"title":"%s","url":"%s/albums/%s"}' \
+    "$(gallery_js_escape "$album_name")" "$gallery_output_url_prefix" "$(gallery_url_escape_path "$fragment_rel")")"
 }
 
 generate_gallery() {

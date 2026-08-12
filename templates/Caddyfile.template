@@ -1,5 +1,17 @@
 __CADDY_HOST__:__CADDY_PORT__ {
 	route {
+		encode zstd gzip
+
+		@photina_html {
+			path / /admin* /guest* /albums/*
+		}
+		header @photina_html Cache-Control "private, no-cache"
+
+		@photina_static {
+			path /thumbnails/* /assets/*
+		}
+		header @photina_static Cache-Control "private, max-age=31536000, immutable"
+
 		basic_auth {
 			admin __ADMIN_PASSWORD_HASH__
 			guest __GUEST_PASSWORD_HASH__

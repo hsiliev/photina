@@ -11,6 +11,7 @@ gallery_read_metadata() {
 gallery_render_media_item() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 output_dir=$6 item_index=$7
   local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url medium_relative
+  local web_video_url
   local title exif_location exif_model exif_time exif_lens exif_focal_length exif_fstop exif_iso exif_exposure exif_flash viewer_url
   local -a metadata_values=()
 
@@ -20,8 +21,8 @@ gallery_render_media_item() {
   media_url="/media/$(gallery_url_escape_path "$album_rel/$relative")"
   medium_relative="${relative}.webp"
   medium_relative="${medium_relative%.webp}_medium.webp"
-  medium_url="/thumbnails/$(gallery_url_escape_path "$album_rel/$medium_relative")"
-  thumb_url="/thumbnails/$(gallery_url_escape_path "$album_rel/$relative.webp")"
+  medium_url=$(gallery_thumbnail_url "$medium_path" "$album_rel/$medium_relative")
+  thumb_url=$(gallery_thumbnail_url "$thumb_path" "$album_rel/$relative.webp")
   title=${relative##*/}; title=${title%.*}
 
   metadata_path="$metadata_dir/$album_rel/$relative.json"
@@ -47,7 +48,8 @@ gallery_render_media_item() {
   if gallery_is_video "$source"; then
     if gallery_needs_web_video "$source"; then
       web_video_path="${thumb_path%.webp}.web.mp4"
-      viewer_url="/thumbnails/$(gallery_url_escape_path "$album_rel/$relative.web.mp4")"
+      web_video_url=$(gallery_thumbnail_url "$web_video_path" "$album_rel/$relative.web.mp4")
+      viewer_url=$web_video_url
     else
       viewer_url=$media_url
     fi
