@@ -134,5 +134,28 @@ gallery_find_album_cover() {
 }
 
 gallery_find_child_albums() {
-  find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0 | LC_ALL=C sort -z -r
+  local child child_name
+  local -a year_albums=() other_albums=()
+
+  while IFS= read -r -d '' child; do
+    child_name=${child##*/}
+    if [[ "$child_name" =~ ^[0-9]{4}$ ]]; then
+      year_albums+=("$child_name	$child")
+    else
+      other_albums+=("$child_name	$child")
+    fi
+  done < <(find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0)
+
+  if ((${#year_albums[@]})); then
+    printf '%s\0' "${year_albums[@]}" | LC_ALL=C sort -z -r |
+      while IFS= read -r -d '' child; do
+        printf '%s\0' "${child#*$'\t'}"
+      done
+  fi
+  if ((${#other_albums[@]})); then
+    printf '%s\0' "${other_albums[@]}" | LC_ALL=C sort -z |
+      while IFS= read -r -d '' child; do
+        printf '%s\0' "${child#*$'\t'}"
+      done
+  fi
 }
