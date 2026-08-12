@@ -77,7 +77,7 @@ gallery_generate_parent_album() {
 
 gallery_generate_leaf_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
-  local fragment_rel fragment_path fragment_tmp
+  local fragment_rel fragment_path fragment_tmp preview_source preview_relative preview_url
 
   printf 'Generating album fragment: %s ...' "$album_name"
   fragment_rel="$album_name.html"
@@ -93,8 +93,20 @@ gallery_generate_leaf_album() {
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   fi
-  gallery_append_album_list_item "$(printf '{"title":"%s","url":"%s/albums/%s"}' \
-    "$(gallery_js_escape "$album_name")" "$gallery_output_url_prefix" "$(gallery_url_escape_path "$fragment_rel")")"
+  preview_source=
+  while IFS= read -r -d '' preview_source; do break; done < <(gallery_find_album_cover "$album_path")
+  if [[ -z "$preview_source" ]]; then
+    while IFS= read -r -d '' preview_source; do break; done < <(gallery_find_first_media "$album_path")
+  fi
+  preview_url=
+  if [[ -n "$preview_source" ]]; then
+    preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}
+    preview_url=$(gallery_thumbnail_url "$thumbs_dir/$album_name/$preview_relative.webp" \
+      "$album_name/$preview_relative.webp")
+  fi
+  gallery_append_album_list_item "$(printf '{"title":"%s","thumbnail":"%s","url":"%s/albums/%s"}' \
+    "$(gallery_js_escape "$album_name")" "$(gallery_js_escape "$preview_url")" \
+    "$gallery_output_url_prefix" "$(gallery_url_escape_path "$fragment_rel")")"
 }
 
 generate_gallery() {

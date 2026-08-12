@@ -57,7 +57,9 @@ if (photinaAlbums.length === 0) {
     const fragment = await loadFragment(url);
     if (!isCurrent()) return;
     if (unwrapRoot) {
-      const root = fragment.querySelector(':scope > details.album');
+      const root = fragment.firstElementChild?.matches('details.album')
+        ? fragment.firstElementChild
+        : fragment.querySelector('details.album');
       if (root) {
         const scripts = [...root.querySelectorAll('script')];
         root.querySelector(':scope > summary')?.remove();

@@ -134,5 +134,5 @@ gallery_find_album_cover() {
 }
 
 gallery_find_child_albums() {
-  find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0 | LC_ALL=C sort -z
+  find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0 | LC_ALL=C sort -z -r
 }
