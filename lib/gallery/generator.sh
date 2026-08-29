@@ -57,15 +57,10 @@ gallery_append_album_list_item() {
 
 gallery_album_needs_regeneration() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4
-  local source relative thumbnail
+  local source relative
 
   while IFS= read -r -d '' source; do
     relative=${source#"$album_path"}; relative=${relative#/}
-    thumbnail="$thumbs_dir/$album_name/$relative.webp"
-    [[ -f "$thumbnail" && -f "${thumbnail%.webp}_medium.webp" ]] || return 0
-    if gallery_needs_web_video "$source"; then
-      [[ -f "${thumbnail%.webp}.web.mp4" ]] || return 0
-    fi
     [[ -f "$metadata_dir/$album_name/$relative.json" ]] || return 0
   done < <(gallery_find_media "$album_path")
 

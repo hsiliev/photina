@@ -70,8 +70,7 @@ Regenerate one output independently when needed:
 ```
 
 The gallery generators reuse existing gallery fragments when their generated
-thumbnails and metadata are present, and recreate fragments whose generated
-data is missing.
+metadata is present, and recreate fragments whose metadata is missing.
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
