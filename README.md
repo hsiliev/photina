@@ -69,8 +69,9 @@ Regenerate one output independently when needed:
 ./generate-guest-gallery.sh
 ```
 
-The gallery generators keep existing gallery fragments and generate only
-missing ones.
+The gallery generators reuse existing gallery fragments when their generated
+thumbnails and metadata are present, and recreate fragments whose generated
+data is missing.
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in

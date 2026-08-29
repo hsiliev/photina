@@ -55,6 +55,23 @@ gallery_append_album_list_item() {
   album_list+="$item"
 }
 
+gallery_album_needs_regeneration() {
+  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4
+  local source relative thumbnail
+
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_path"}; relative=${relative#/}
+    thumbnail="$thumbs_dir/$album_name/$relative.webp"
+    [[ -f "$thumbnail" && -f "${thumbnail%.webp}_medium.webp" ]] || return 0
+    if gallery_needs_web_video "$source"; then
+      [[ -f "${thumbnail%.webp}.web.mp4" ]] || return 0
+    fi
+    [[ -f "$metadata_dir/$album_name/$relative.json" ]] || return 0
+  done < <(gallery_find_media "$album_path")
+
+  return 1
+}
+
 gallery_generate_parent_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
   local child child_name child_urls= preview_url
@@ -82,7 +99,8 @@ gallery_generate_leaf_album() {
   printf 'Generating album fragment: %s ...' "$album_name"
   fragment_rel="$album_name.html"
   fragment_path="$fragment_dir/$fragment_rel"
-  if [[ -f "$fragment_path" ]]; then
+  if [[ -f "$fragment_path" ]] &&
+    ! gallery_album_needs_regeneration "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir"; then
     echo ' skipped'
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   else

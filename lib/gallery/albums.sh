@@ -84,7 +84,8 @@ gallery_write_nested_fragments() {
     fragment_path="$fragment_dir/$child_rel.html"
     printf 'Generating album fragment: %s ...' "$child_rel"
     gallery_image_count=0
-    if [[ -f "$fragment_path" ]]; then
+    if [[ -f "$fragment_path" ]] &&
+      ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir"; then
       echo ' skipped'
       gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
       continue
