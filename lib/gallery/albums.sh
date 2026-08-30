@@ -33,8 +33,14 @@ gallery_render_album() {
     child_count=$((child_count + 1))
   done < <(gallery_find_child_albums "$album_dir")
   preview_source=${preview_sources[0]:-}
+  preview_url=
   if [[ -n "$preview_source" ]]; then
     preview_url=$(gallery_album_preview_url "$preview_source" "$album_dir" "$album_rel" "$thumbs_dir" "$output_dir")
+  elif (( child_count > 0 )); then
+    preview_url=$(gallery_nested_album_preview_url "$album_dir" "$album_rel" "$thumbs_dir")
+    preview_url=$(gallery_html_escape "$preview_url")
+  fi
+  if [[ -n "$preview_url" ]]; then
     if (( child_count > 0 )); then
       gallery_print_template album-parent-preview.html "$preview_url" "$(gallery_html_escape "$album_name")"
     else
