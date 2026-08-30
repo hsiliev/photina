@@ -121,7 +121,7 @@ gallery_generate_parent_album() {
 }
 
 gallery_generate_leaf_album() {
-  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
+  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6 index_template=$7
   local fragment_rel fragment_path fragment_tmp preview_source preview_relative preview_url
 
   printf 'Generating album fragment: %s ...\n' "$album_name"
@@ -131,13 +131,11 @@ gallery_generate_leaf_album() {
     grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
     ! gallery_album_needs_regeneration "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
     echo ' skipped'
-    gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   else
     fragment_tmp=$(mktemp "$fragment_dir/.fragment-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
     mv -f -- "$fragment_tmp" "$fragment_path"
-    gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   fi
   preview_source=
   while IFS= read -r -d '' preview_source; do break; done < <(gallery_find_album_cover "$album_path")
@@ -153,6 +151,8 @@ gallery_generate_leaf_album() {
   gallery_append_album_list_item "$(printf '{"title":"%s","thumbnail":"%s","url":"%s/albums/%s"}' \
     "$(gallery_js_escape "$album_name")" "$(gallery_js_escape "$preview_url")" \
     "$gallery_output_url_prefix" "$(gallery_url_escape_path "$fragment_rel")")"
+  gallery_write_index "$output_dir" "$index_template"
+  gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
 }
 
 generate_gallery() {
@@ -185,7 +185,7 @@ generate_gallery() {
     if ((${#direct_media[@]} == 0)); then
       gallery_generate_parent_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir" "$index_template"
     else
-      gallery_generate_leaf_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
+      gallery_generate_leaf_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir" "$index_template"
     fi
     gallery_write_index "$output_dir" "$index_template"
   done < <(gallery_find_child_albums "$albums_dir")
