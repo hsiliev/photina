@@ -24,9 +24,10 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
 - `./check-missing-thumbnails.sh` independently checks and lists missing
   thumbnail, medium, and web-video outputs. It exits with status 1 if any are
   missing; it does not modify the thumbnail tree.
-- `./cleanup-thumbnails.sh` removes thumbnail files and empty thumbnail
+- `./cleanup-thumbnails-and-metadata.sh` removes thumbnail files and empty thumbnail
   directories that no longer correspond to albums or media files. It does not
-  modify metadata, and prints one progress line for each album it processes.
+  modify album content, removes redundant metadata files and empty metadata
+  directories, and prints one progress line for each album it processes.
   Cleanup output identifies whether each stale thumbnail is from a missing
   original album or image for files. The thumbnail and metadata cache directories contain
   generated content only, so stale-thumbnail cleanup compares every file under

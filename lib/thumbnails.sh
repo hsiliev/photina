@@ -305,6 +305,36 @@ thumbnail_add_expected_outputs() {
   done <"$media_file"
 }
 
+thumbnail_add_expected_metadata() {
+  local album_path=$1 album_name=$2 metadata_dir=$3 media_file=$4 metadata_name=$5 checksums_name=$6
+  local source relative
+  local -n metadata="$metadata_name" checksums="$checksums_name"
+
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_path"}; relative=${relative#/}
+    metadata["$metadata_dir/$album_name/$relative.json"]=1
+  done <"$media_file"
+  checksums["$metadata_dir/$album_name/md5sums.txt"]=1
+}
+
+thumbnail_cleanup_stale_metadata() {
+  local metadata_dir=$1 metadata_name=$2 checksums_name=$3
+  local metadata stale_relative
+  local -n metadata_expected="$metadata_name" checksums_expected="$checksums_name"
+
+  [[ -d "$metadata_dir" ]] || return 0
+  printf '\tChecking for stale metadata files in %s ...\n' "$metadata_dir"
+  while IFS= read -r -d '' metadata; do
+    [[ -n ${metadata_expected["$metadata"]+present} || -n ${checksums_expected["$metadata"]+present} ]] && continue
+    stale_relative=${metadata#"$metadata_dir"/}
+    printf '\tRemoving stale metadata: %s\n' "$stale_relative"
+    rm -f -- "$metadata"
+  done < <(find -P "$metadata_dir" -type f -print0)
+
+  printf '\tRemoving empty metadata directories in %s ...\n' "$metadata_dir"
+  find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print -delete
+}
+
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
@@ -349,7 +379,7 @@ update_thumbnails() {
         relative=${source#"$album_path"}; relative=${relative#/}
         expected_metadata["$metadata_dir/$album_name/$relative.json"]=1
       done <"$media_file"
-      expected_checksums["$metadata_dir/$album_name/md5sums.txt"]=1
+      thumbnail_add_expected_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" expected_metadata expected_checksums
       echo "Scanning album: $album_name"
       if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file"; then
         if thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
@@ -369,28 +399,7 @@ update_thumbnails() {
   done
   thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
 
-  while IFS= read -r -d '' metadata; do
-    [[ -n ${expected_metadata["$metadata"]+present} ]] && continue
-    stale_metadata_relative=${metadata#"$metadata_dir"/}
-    printf '\tRemoving stale metadata: %s\n' "$stale_metadata_relative"
-    rm -f -- "$metadata"
-  done < <(find -P "$metadata_dir" -type f -name '*.json' -print0)
-
-  while IFS= read -r -d '' checksum_file; do
-    [[ -n ${expected_checksums["$checksum_file"]+present} ]] && continue
-    stale_relative=${checksum_file#"$metadata_dir"/}
-    printf '\tRemoving stale checksum manifest: %s\n' "$stale_relative"
-    rm -f -- "$checksum_file"
-  done < <(find -P "$metadata_dir" -type f -name 'md5sums.txt' -print0)
-
-  while :; do
-    cleanup_removed=0
-    while IFS= read -r -d '' stale_metadata_dir; do
-      printf '\tRemoving stale metadata directory: %s\n' "${stale_metadata_dir#"$metadata_dir"/}"
-      if rmdir -- "$stale_metadata_dir"; then cleanup_removed=1; fi
-    done < <(find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print0)
-    ((cleanup_removed)) || break
-  done
+  thumbnail_cleanup_stale_metadata "$metadata_dir" expected_metadata expected_checksums
 
   if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
 
