@@ -266,7 +266,7 @@ update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
   local root_album_path album_path album_name source relative thumb_path medium_path web_video_path media_file
-  local thumbnail stale_relative missing_path missing_thumbnails=0
+  local thumbnail stale_relative
   local metadata stale_metadata_relative
   local found_media cleanup_removed
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
@@ -334,15 +334,6 @@ update_thumbnails() {
       rm -f -- "$media_file"
     done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
-  echo 'Checking for missing thumbnails ...'
-  for thumbnail in "${!expected_thumbnails[@]}"; do
-    [[ -f "$thumbnail" ]] && continue
-    printf 'Missing thumbnail: %s\n' "${thumbnail#"$thumbs_dir"/}"
-    missing_thumbnails=1
-  done
-  if (( missing_thumbnails != 0 )); then thumbnail_failed=1; fi
-  if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
-
   while IFS= read -r -d '' thumbnail; do
     [[ -n ${expected_thumbnails["$thumbnail"]+present} ]] && continue
     stale_relative=${thumbnail#"$thumbs_dir"/}
@@ -381,6 +372,8 @@ update_thumbnails() {
     done < <(find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print0)
     ((cleanup_removed)) || break
   done
+
+  if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
 
   echo 'Thumbnail update complete'
 }

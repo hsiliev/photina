@@ -21,6 +21,9 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
   video previews, EXIF metadata, and `md5sums.txt` manifests. It also removes
   stale thumbnail/metadata files and empty thumbnail/metadata directories for
   deleted albums.
+- `./check-missing-thumbnails.sh` independently checks and lists missing
+  thumbnail, medium, and web-video outputs. It exits with status 1 if any are
+  missing.
 - `./generate-admin-gallery.sh` generates the admin gallery.
 - `./generate-guest-gallery.sh` generates the guest gallery using `GUEST_ALBUMS`.
 - `./delete-admin-gallery.sh` and `./delete-guest-gallery.sh` delete only the
@@ -140,7 +143,8 @@ fragments.
 Progress output uses one newline-terminated message per fragment. Do not add
 per-image dots because parallel workers would garble the output. Thumbnail
 updates print `Checking for missing thumbnails ...` before listing any missing
-outputs.
+outputs. Missing-output checking is performed by the separate
+`check-missing-thumbnails.sh` command.
 
 ## Validation
 
