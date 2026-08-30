@@ -106,14 +106,14 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 8 -->
+<!-- photina-fragment-version: 7 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 ```
 
 `gallery_fragment_version` in `lib/gallery/generator.sh` must be incremented
 when fragment structure or lazy-loading markup changes. Fragments are reused
 only when the version matches, the manifest checksum matches the current
-`md5sums.txt`, and the immediate-child manifest matches. Run `update-thumbnails.sh` first so the manifest and metadata
+`md5sums.txt`. Run `update-thumbnails.sh` first so the manifest and metadata
 are current.
 
 The manifest marker is an internal HTML comment; it does not change metadata,

@@ -11,7 +11,7 @@ gallery_album_preview_url() {
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
   local album_name source child child_name preview_source preview_url gallery_id item_index child_count thumbnail_width thumbnail_height
-  local child_preview_url child_url child_child_count child_child child_child_name manifest_checksum children_checksum
+  local child_preview_url child_url child_child_count child_child child_child_name manifest_checksum
   local -a sources=() preview_sources=()
 
   printf '<!-- photina-fragment-version: %s -->\n' "$gallery_fragment_version"
@@ -20,8 +20,6 @@ gallery_render_album() {
   else
     printf '<!-- photina-media-manifest: missing -->\n'
   fi
-  children_checksum=$(gallery_album_children_checksum "$album_dir" "$album_rel")
-  printf '<!-- photina-children-manifest: %s -->\n' "$children_checksum"
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
   thumbnail_width=$thumbnail_size
