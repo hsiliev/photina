@@ -24,6 +24,9 @@ gallery_render_album() {
   if gallery_album_content_is_allowed "$album_rel"; then
     while IFS= read -r -d '' source; do sources+=("$source"); done < <(gallery_find_media_by_date "$album_dir" "$album_rel" "$metadata_dir")
     while IFS= read -r -d '' source; do preview_sources+=("$source"); done < <(gallery_find_album_cover "$album_dir")
+    if ((${#preview_sources[@]} == 0)); then
+      while IFS= read -r -d '' source; do preview_sources+=("$source"); done < <(gallery_find_first_media "$album_dir")
+    fi
   fi
 
   child_count=0

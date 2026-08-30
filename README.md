@@ -189,4 +189,4 @@ thumbnails receive a new cache key safely.
 ### Album thumbnails
 To choose an album preview, place an image named `album.jpg` directly in that 
 album’s folder. It is converted to a thumbnail and used as the album preview.
-Albums without an `album.jpg` do not load an image as a fallback preview.
+When no `album.jpg` exists, the first available image is used as a fallback.
