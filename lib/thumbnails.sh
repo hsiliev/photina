@@ -246,7 +246,7 @@ update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
   local root_album_path album_path album_name source relative thumb_path medium_path web_video_path
-  local thumbnail stale_relative
+  local thumbnail stale_relative missing_path missing_thumbnails=0
   local metadata stale_metadata_relative
   local found_media
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
@@ -305,6 +305,28 @@ update_thumbnails() {
       fi
     done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
+  while IFS= read -r -d '' album_path; do
+    album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
+    while IFS= read -r -d '' source; do
+      relative=${source#"$album_path"}; relative=${relative#/}
+      thumbnail="$thumbs_dir/$album_name/$relative.webp"
+      for missing_path in \
+        "$thumbnail" \
+        "${thumbnail%.webp}_medium.webp"; do
+        [[ -f "$missing_path" ]] && continue
+        printf 'Missing thumbnail: %s\n' "${missing_path#"$thumbs_dir"/}"
+        missing_thumbnails=1
+      done
+      if thumbnail_needs_web_video "$source"; then
+        missing_path="${thumbnail%.webp}.web.mp4"
+        if [[ ! -f "$missing_path" ]]; then
+          printf 'Missing thumbnail: %s\n' "${missing_path#"$thumbs_dir"/}"
+          missing_thumbnails=1
+        fi
+      fi
+    done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+  done < <(find -P "$albums_dir" -type d -print0 | sort -z)
+  if (( missing_thumbnails != 0 )); then thumbnail_failed=1; fi
   if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
 
   while IFS= read -r -d '' thumbnail; do

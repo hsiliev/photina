@@ -40,12 +40,6 @@ gallery_nested_album_preview_url() {
         "$album_name/$preview_child_name/$preview_relative.webp"
       return
     done < <(gallery_find_album_cover "$preview_child")
-    while IFS= read -r -d '' preview_source; do
-      preview_relative=${preview_source#"$preview_child"}; preview_relative=${preview_relative#/}
-      gallery_thumbnail_url "$thumbs_dir/$album_name/$preview_child_name/$preview_relative.webp" \
-        "$album_name/$preview_child_name/$preview_relative.webp"
-      return
-    done < <(gallery_find_first_media "$preview_child")
   done < <(gallery_find_child_albums "$album_path")
 }
 
@@ -69,7 +63,7 @@ gallery_album_needs_regeneration() {
 
 gallery_generate_parent_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
-  local child child_name child_urls= preview_url
+  local child child_name child_urls= preview_url child_preview_url
 
   printf 'Generating album fragment: %s ...\n' "$album_name"
   gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
@@ -78,8 +72,11 @@ gallery_generate_parent_album() {
   while IFS= read -r -d '' child; do
     child_name=${child%/}; child_name=${child_name##*/}
     gallery_album_is_visible "$album_name/$child_name" || continue
+    child_preview_url=$(gallery_nested_album_preview_url "$child" "$album_name/$child_name" "$thumbs_dir")
     [[ -n "$child_urls" ]] && child_urls+=,
-    child_urls+=$(printf '{"url":"%s/albums/%s/%s.html"}' "$gallery_output_url_prefix" \
+    child_urls+=$(printf '{"title":"%s","thumbnail":"%s","url":"%s/albums/%s/%s.html"}' \
+      "$(gallery_js_escape "$child_name")" "$(gallery_js_escape "$child_preview_url")" \
+      "$gallery_output_url_prefix" \
       "$(gallery_js_escape "$(gallery_url_escape_path "$album_name")")" \
       "$(gallery_js_escape "$(gallery_url_escape_path "$child_name")")")
   done < <(gallery_find_child_albums "$album_path")
@@ -108,9 +105,6 @@ gallery_generate_leaf_album() {
   fi
   preview_source=
   while IFS= read -r -d '' preview_source; do break; done < <(gallery_find_album_cover "$album_path")
-  if [[ -z "$preview_source" ]]; then
-    while IFS= read -r -d '' preview_source; do break; done < <(gallery_find_first_media "$album_path")
-  fi
   preview_url=
   if [[ -n "$preview_source" ]]; then
     preview_relative=${preview_source#"$album_path"}; preview_relative=${preview_relative#/}

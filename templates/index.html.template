@@ -111,7 +111,12 @@ if (photinaAlbums.length === 0) {
       const generation = ++loadGeneration;
       const isCurrent = () => details.open && generation === loadGeneration;
       loading = album.children
-        ? Promise.allSettled(album.children.map(child => loadInto(children, child.url, false, isCurrent)))
+        ? Promise.all(album.children.map(renderAlbum)).then(childAlbums => {
+            if (!isCurrent()) return [];
+            childAlbums.forEach(childAlbum => children.append(childAlbum.element));
+            activateVisibleAlbumThumbnails(children);
+            return childAlbums;
+          })
         : loadInto(children, album.url, true, isCurrent).then(() => []);
       return loading.then(results => {
         if (!isCurrent()) return;
