@@ -113,6 +113,11 @@ have a zero timestamp if thumbnail generation has not completed yet.
 Gallery generation is mostly filesystem and shell/process overhead. Thumbnail
 generation is separate and is CPU-intensive due to ImageMagick/FFmpeg.
 
+Thumbnail updates collect one sorted NUL-delimited media list per album and
+reuse it for thumbnail generation, metadata extraction, checksum handling, and
+missing-thumbnail checks. Complete thumbnail/medium pairs are skipped, and
+metadata extraction is limited to files without an existing metadata record.
+
 Current gallery-generation optimizations include:
 
 - Shallow fragments and browser-side child loading.
@@ -123,6 +128,8 @@ Current gallery-generation optimizations include:
 - Atomic progressive index and fragment publication.
 - Parallel nested fragment generation, capped at `min(5, available CPU cores)`.
 - Deterministic path-derived gallery IDs so parallel workers cannot collide.
+- Unchanged album fragments are reused when their version and media manifest
+  markers still match.
 
 Do not change metadata or thumbnail formats when optimizing gallery generation.
 Top-level album ordering remains deterministic. Parent entries are published

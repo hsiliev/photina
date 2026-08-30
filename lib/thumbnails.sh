@@ -124,11 +124,15 @@ thumbnail_process_item() {
 
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
-  local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9
+  local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9 media_file=${10:-}
   export -f thumbnail_is_video thumbnail_needs_web_video thumbnail_make thumbnail_process_item
 
-  if [[ "$kind" == image ]]; then
+  if [[ -n "$media_file" ]]; then
+    cat -- "$media_file"
+  elif [[ "$kind" == image ]]; then
     thumbnail_find_media "$album_path" image direct
+  elif [[ "$kind" == all ]]; then
+    { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
   else
     thumbnail_find_media "$album_path" video direct
   fi |
@@ -140,7 +144,7 @@ thumbnail_batch_album() {
 }
 
 thumbnail_batch_metadata() {
-  local album_path=$1 album_name=$2 metadata_dir=$3
+  local album_path=$1 album_name=$2 metadata_dir=$3 media_file=${4:-}
   local source relative metadata metadata_tmp batch_tmp records_tmp record
   local -a sources=()
 
@@ -150,7 +154,11 @@ thumbnail_batch_metadata() {
     if [[ ! -f "$metadata" ]]; then
       sources+=("$source")
     fi
-  done < <(thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct | sort -z)
+  done < <(
+    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
+      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
+    fi
+  )
 
   if ((${#sources[@]} == 0)); then
     printf '\tMetadata: no new files for %s\n' "$album_name"
@@ -184,7 +192,7 @@ thumbnail_batch_metadata() {
 }
 
 thumbnail_generate_checksums() {
-  local album_path=$1 album_name=$2 metadata_dir=$3
+  local album_path=$1 album_name=$2 metadata_dir=$3 media_file=${4:-}
   local source relative checksum_file checksum_tmp checksum_count=0
   local -a relative_sources=()
 
@@ -196,7 +204,11 @@ thumbnail_generate_checksums() {
     relative=${source#"$album_path"}; relative=${relative#/}
     relative_sources+=("$relative")
     checksum_count=$((checksum_count + 1))
-  done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+  done < <(
+    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
+      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
+    fi
+  )
 
   if ((${#relative_sources[@]})); then
     if ! printf '%s\0' "${relative_sources[@]}" |
@@ -212,7 +224,7 @@ thumbnail_generate_checksums() {
 }
 
 thumbnail_checksums_need_update() {
-  local album_path=$1 album_name=$2 metadata_dir=$3
+  local album_path=$1 album_name=$2 metadata_dir=$3 media_file=${4:-}
   local checksum_file=$metadata_dir/$album_name/md5sums.txt
   local line relative source current_count=0 manifest_count=0
   local -A manifest_sources=()
@@ -231,13 +243,21 @@ thumbnail_checksums_need_update() {
     relative=${source#"$album_path"}; relative=${relative#/}
     [[ -n ${manifest_sources["$relative"]+present} ]] || return 0
     current_count=$((current_count + 1))
-  done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+  done < <(
+    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
+      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
+    fi
+  )
 
   ((current_count == manifest_count)) || return 0
 
   while IFS= read -r -d '' source; do
     [[ "$source" -nt "$checksum_file" ]] && return 0
-  done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
+  done < <(
+    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
+      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
+    fi
+  )
 
   return 1
 }
@@ -245,7 +265,7 @@ thumbnail_checksums_need_update() {
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
-  local root_album_path album_path album_name source relative thumb_path medium_path web_video_path
+  local root_album_path album_path album_name source relative thumb_path medium_path web_video_path media_file
   local thumbnail stale_relative missing_path missing_thumbnails=0
   local metadata stale_metadata_relative
   local found_media cleanup_removed
@@ -273,6 +293,12 @@ update_thumbnails() {
     while IFS= read -r -d '' album_path; do
       album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
       found_media=0
+      media_file=$(mktemp)
+      if ! { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z >"$media_file"; then
+        rm -f -- "$media_file"
+        thumbnail_failed=1
+        continue
+      fi
       while IFS= read -r -d '' source; do
         found_media=1
         relative=${source#"$album_path"}; relative=${relative#/}
@@ -285,15 +311,17 @@ update_thumbnails() {
           web_video_path="${thumb_path%.webp}.web.mp4"
           expected_thumbnails["$web_video_path"]=1
         fi
-      done < <(thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct | sort -z)
-      ((found_media)) || continue
+      done <"$media_file"
+      if (( ! found_media )); then
+        rm -f -- "$media_file"
+        continue
+      fi
       expected_checksums["$metadata_dir/$album_name/md5sums.txt"]=1
       echo "Scanning album: $album_name"
-      if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" image "$display_mode" \
-        && thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" video "$display_mode"; then
-        if thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir"; then
-          if thumbnail_checksums_need_update "$album_path" "$album_name" "$metadata_dir"; then
-            thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" || thumbnail_failed=1
+      if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file"; then
+        if thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
+          if thumbnail_checksums_need_update "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
+            thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" "$media_file" || thumbnail_failed=1
           else
             printf '\tChecksums: unchanged for %s (skipped)\n' "$album_name"
           fi
@@ -303,29 +331,14 @@ update_thumbnails() {
       else
         thumbnail_failed=1
       fi
+      rm -f -- "$media_file"
     done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
-  while IFS= read -r -d '' album_path; do
-    album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
-    while IFS= read -r -d '' source; do
-      relative=${source#"$album_path"}; relative=${relative#/}
-      thumbnail="$thumbs_dir/$album_name/$relative.webp"
-      for missing_path in \
-        "$thumbnail" \
-        "${thumbnail%.webp}_medium.webp"; do
-        [[ -f "$missing_path" ]] && continue
-        printf 'Missing thumbnail: %s\n' "${missing_path#"$thumbs_dir"/}"
-        missing_thumbnails=1
-      done
-      if thumbnail_needs_web_video "$source"; then
-        missing_path="${thumbnail%.webp}.web.mp4"
-        if [[ ! -f "$missing_path" ]]; then
-          printf 'Missing thumbnail: %s\n' "${missing_path#"$thumbs_dir"/}"
-          missing_thumbnails=1
-        fi
-      fi
-    done < <({ thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z)
-  done < <(find -P "$albums_dir" -type d -print0 | sort -z)
+  for thumbnail in "${!expected_thumbnails[@]}"; do
+    [[ -f "$thumbnail" ]] && continue
+    printf 'Missing thumbnail: %s\n' "${thumbnail#"$thumbs_dir"/}"
+    missing_thumbnails=1
+  done
   if (( missing_thumbnails != 0 )); then thumbnail_failed=1; fi
   if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
 
