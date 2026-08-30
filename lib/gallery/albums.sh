@@ -116,7 +116,7 @@ gallery_generate_nested_fragment() {
   local fragment_tmp fragment_path
 
   fragment_path="$fragment_dir/$child_rel.html"
-  printf 'Generating album fragment: %s ...' "$child_rel"
+  printf 'Generating album fragment: %s ...\n' "$child_rel"
   gallery_image_count=0
   if [[ -f "$fragment_path" ]] &&
     grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
@@ -129,7 +129,6 @@ gallery_generate_nested_fragment() {
   fragment_tmp=$(mktemp "$(dirname -- "$fragment_path")/.fragment-XXXXXX")
   gallery_render_album "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" \
     "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
-  printf '\n'
   mv -f -- "$fragment_tmp" "$fragment_path"
   gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
 }

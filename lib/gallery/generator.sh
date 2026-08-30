@@ -124,7 +124,7 @@ gallery_generate_leaf_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
   local fragment_rel fragment_path fragment_tmp preview_source preview_relative preview_url
 
-  printf 'Generating album fragment: %s ...' "$album_name"
+  printf 'Generating album fragment: %s ...\n' "$album_name"
   fragment_rel="$album_name.html"
   fragment_path="$fragment_dir/$fragment_rel"
   if [[ -f "$fragment_path" ]] &&
@@ -136,7 +136,6 @@ gallery_generate_leaf_album() {
     fragment_tmp=$(mktemp "$fragment_dir/.fragment-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
       "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
-    printf '\n'
     mv -f -- "$fragment_tmp" "$fragment_path"
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   fi
