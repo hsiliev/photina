@@ -26,7 +26,14 @@ if (photinaAlbums.length === 0) {
     if (!response.ok) throw new Error(`Unable to load ${url}: ${response.status}`);
     return document.createRange().createContextualFragment(await response.text());
   };
-  const initializeScripts = scripts => scripts.forEach(script => {
+  const activateAlbumThumbnail = details => {
+    const image = details.querySelector(':scope > summary img[data-src]');
+    if (image && !image.hasAttribute('src')) image.src = image.dataset.src;
+  };
+  const activateVisibleAlbumThumbnails = container => {
+    container.querySelectorAll(':scope > details.album').forEach(activateAlbumThumbnail);
+  };
+  const initializeScripts = (scripts, forcedDetails = null, forcedActiveDetails = null) => scripts.forEach(script => {
       let initialized = false;
       const initialize = () => {
         if (initialized) return;
@@ -35,15 +42,17 @@ if (photinaAlbums.length === 0) {
       };
       const details = script.closest('details');
       if (details) {
+        const isActive = () => details.open ||
+          (details === forcedDetails && forcedActiveDetails?.open);
         const initializeWhenOpen = () => {
-          if (details.open) setTimeout(initialize, 0);
+          if (isActive()) setTimeout(initialize, 0);
         };
         details.addEventListener('toggle', initializeWhenOpen);
         const summary = details.querySelector(':scope > summary');
         summary?.addEventListener('click', () => {
           setTimeout(initializeWhenOpen, 0);
         }, {once:true});
-        if (details.open) setTimeout(initialize, 0);
+        if (isActive()) setTimeout(initialize, 0);
       } else {
         initialize();
       }
@@ -64,11 +73,13 @@ if (photinaAlbums.length === 0) {
         const scripts = [...root.querySelectorAll('script')];
         root.querySelector(':scope > summary')?.remove();
         while (root.firstChild) container.append(root.firstChild);
-        initializeScripts(scripts);
+        initializeScripts(scripts, root, container.closest('details'));
+        activateVisibleAlbumThumbnails(container);
         return;
       }
     }
     appendFragment(container, fragment);
+    activateVisibleAlbumThumbnails(container);
   };
   const renderAlbum = async album => {
     const details = document.createElement('details');
@@ -78,7 +89,7 @@ if (photinaAlbums.length === 0) {
     if (album.thumbnail) {
       const image = document.createElement('img');
       image.className = 'album-thumbnail';
-      image.src = album.thumbnail;
+      image.dataset.src = album.thumbnail;
       image.loading = 'lazy';
       image.alt = '';
       summary.append(image);
@@ -91,6 +102,7 @@ if (photinaAlbums.length === 0) {
     summary.append(marker, title);
     const children = document.createElement('div');
     details.append(summary, children);
+    activateAlbumThumbnail(details);
     let loaded = false;
     let loading = null;
     let loadGeneration = 0;
