@@ -26,7 +26,9 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
   missing; it does not modify the thumbnail tree.
 - `./cleanup-thumbnails.sh` removes thumbnail files and empty thumbnail
   directories that no longer correspond to albums or media files. It does not
-  modify metadata.
+  modify metadata, and prints one progress line for each album it processes.
+  Cleanup output identifies whether each stale thumbnail is from a missing
+  original album or image.
 - `./generate-admin-gallery.sh` generates the admin gallery.
 - `./generate-guest-gallery.sh` generates the guest gallery using `GUEST_ALBUMS`.
 - `./delete-admin-gallery.sh` and `./delete-guest-gallery.sh` delete only the

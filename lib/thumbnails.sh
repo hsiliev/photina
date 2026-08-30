@@ -263,8 +263,8 @@ thumbnail_checksums_need_update() {
 }
 
 thumbnail_cleanup_stale() {
-  local thumbs_dir=$1 expected_name=$2
-  local thumbnail stale_relative stale_thumbnail_dir cleanup_removed
+  local albums_dir=$1 thumbs_dir=$2 expected_name=$3
+  local thumbnail stale_relative stale_thumbnail_dir cleanup_removed source_path reason album_relative
   local -n expected="$expected_name"
 
   [[ -d "$thumbs_dir" ]] || return 0
@@ -272,14 +272,28 @@ thumbnail_cleanup_stale() {
   while IFS= read -r -d '' thumbnail; do
     [[ -n ${expected["$thumbnail"]+present} ]] && continue
     stale_relative=${thumbnail#"$thumbs_dir"/}
-    printf '\tRemoving stale thumbnail: %s\n' "$stale_relative"
+    source_path=${stale_relative%.web.mp4}
+    [[ "$source_path" == "$stale_relative" ]] && source_path=${source_path%_medium.webp}
+    [[ "$source_path" == "$stale_relative" ]] && source_path=${source_path%.webp}
+    if [[ -d "$albums_dir/${source_path%/*}" ]]; then
+      reason='no such original image'
+    else
+      reason='no such original album'
+    fi
+    printf '\tRemoving stale thumbnail: %s (%s)\n' "$stale_relative" "$reason"
     rm -f -- "$thumbnail"
   done < <(find -P "$thumbs_dir" -type f \( -name '*.webp' -o -name '*.avif' -o -name '*.jpg' -o -name '*.mp4' \) -print0)
 
   while :; do
     cleanup_removed=0
     while IFS= read -r -d '' stale_thumbnail_dir; do
-      printf '\tRemoving stale thumbnail directory: %s\n' "${stale_thumbnail_dir#"$thumbs_dir"/}"
+      album_relative=${stale_thumbnail_dir#"$thumbs_dir"/}
+      if [[ -d "$albums_dir/$album_relative" ]]; then
+        reason='empty directory'
+      else
+        reason='no such original album'
+      fi
+      printf '\tRemoving stale thumbnail directory: %s (%s)\n' "$album_relative" "$reason"
       if rmdir -- "$stale_thumbnail_dir"; then cleanup_removed=1; fi
     done < <(find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print0)
     ((cleanup_removed)) || break
@@ -358,7 +372,7 @@ update_thumbnails() {
       rm -f -- "$media_file"
     done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
-  thumbnail_cleanup_stale "$thumbs_dir" expected_thumbnails
+  thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
 
   while IFS= read -r -d '' metadata; do
     [[ -n ${expected_metadata["$metadata"]+present} ]] && continue

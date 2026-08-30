@@ -34,6 +34,7 @@ for root_album_path in "$albums_dir"/*/; do
   [[ -d "$root_album_path" ]] || continue
   while IFS= read -r -d '' album_path; do
     album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
+    printf 'Processing album for thumbnail cleanup: %s ...\n' "$album_name"
     media_file=$(mktemp)
     if ! { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } |
       sort -z >"$media_file"; then
@@ -55,4 +56,4 @@ for root_album_path in "$albums_dir"/*/; do
 done
 
 echo "Cleaning redundant thumbnails in $thumbs_dir"
-thumbnail_cleanup_stale "$thumbs_dir" expected_thumbnails
+thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
