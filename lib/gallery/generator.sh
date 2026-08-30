@@ -155,6 +155,7 @@ generate_gallery() {
 
   echo "Generating gallery in $output_dir"
   mkdir -p -- "$output_dir/assets"
+  cp -- "$script_dir/assets/favicon.png" "$output_dir/assets/favicon.png"
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
   album_list=
