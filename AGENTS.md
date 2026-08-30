@@ -78,14 +78,15 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 6 -->
+<!-- photina-fragment-version: 7 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 ```
 
 `gallery_fragment_version` in `lib/gallery/generator.sh` must be incremented
 when fragment structure or lazy-loading markup changes. Fragments are reused
 only when the version matches, the manifest checksum matches the current
-`md5sums.txt`, and the required metadata workflow has been run.
+`md5sums.txt`. Run `update-thumbnails.sh` first so the manifest and metadata
+are current.
 
 The manifest marker is an internal HTML comment; it does not change metadata,
 thumbnail, or generated NanoGallery item formats.
@@ -107,13 +108,20 @@ Current gallery-generation optimizations include:
 - Shallow fragments and browser-side child loading.
 - Metadata parsed once per image during a generation pass and reused for date
   sorting and EXIF rendering.
-- Per-fragment manifest-based reuse checks instead of a per-image fingerprint
+- Per-fragment `md5sums.txt` manifest checks instead of a per-image fingerprint
   scan.
 - Atomic progressive index and fragment publication.
+- Parallel nested fragment generation, capped at `min(5, available CPU cores)`.
+- Deterministic path-derived gallery IDs so parallel workers cannot collide.
 
 Do not change metadata or thumbnail formats when optimizing gallery generation.
-Top-level parallel generation is not currently used because global gallery IDs
-and ordered index construction would need an additional design.
+Top-level album ordering remains deterministic. Parent entries are published
+before their descendant fragments; an album with both direct images and child
+albums publishes after its own fragment is ready, then generates child
+fragments.
+
+Progress output uses one newline-terminated message per fragment. Do not add
+per-image dots because parallel workers would garble the output.
 
 ## Validation
 
@@ -129,4 +137,3 @@ and checked with `node --check`. Focused tests should generate temporary
 three-level album trees and verify that fragments contain only immediate child
 summaries, have balanced `<details>` tags, and that adding a media file changes
 the manifest and regenerates the fragment.
-
