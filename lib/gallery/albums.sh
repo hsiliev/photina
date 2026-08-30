@@ -13,6 +13,8 @@ gallery_render_album() {
   local album_name source child child_name preview_source preview_url gallery_id item_index child_count thumbnail_width thumbnail_height
   local -a sources=() preview_sources=()
 
+  printf '<!-- photina-fragment-version: %s -->\n' "$gallery_fragment_version"
+
   album_name=${album_dir%/}; album_name=${album_name##*/}
   thumbnail_width=$thumbnail_size
   thumbnail_height=$thumbnail_size
@@ -91,6 +93,7 @@ gallery_write_nested_fragments() {
     printf 'Generating album fragment: %s ...' "$child_rel"
     gallery_image_count=0
     if [[ -f "$fragment_path" ]] &&
+      grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
       ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir"; then
       echo ' skipped'
       gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"

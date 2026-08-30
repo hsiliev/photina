@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+gallery_fragment_version=2
+
 gallery_album_is_visible() {
   local album_rel=$1 allowed
   ((${#gallery_allowed_albums[@]} == 0)) && return 0
@@ -115,6 +117,7 @@ gallery_generate_leaf_album() {
   fragment_rel="$album_name.html"
   fragment_path="$fragment_dir/$fragment_rel"
   if [[ -f "$fragment_path" ]] &&
+    grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
     ! gallery_album_needs_regeneration "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir"; then
     echo ' skipped'
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
