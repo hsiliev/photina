@@ -28,7 +28,11 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
   directories that no longer correspond to albums or media files. It does not
   modify metadata, and prints one progress line for each album it processes.
   Cleanup output identifies whether each stale thumbnail is from a missing
-  original album or image.
+  original album or image for files. The thumbnail and metadata cache directories contain
+  generated content only, so stale-thumbnail cleanup compares every file under
+  the thumbnail cache, regardless of filename extension.
+  Expected thumbnail paths are built by a shared helper used by the update,
+  cleanup, and missing-thumbnail-check scripts.
 - `./generate-admin-gallery.sh` generates the admin gallery.
 - `./generate-guest-gallery.sh` generates the guest gallery using `GUEST_ALBUMS`.
 - `./delete-admin-gallery.sh` and `./delete-guest-gallery.sh` delete only the

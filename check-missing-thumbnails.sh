@@ -42,15 +42,7 @@ for root_album_path in "$albums_dir"/*/; do
       die "could not scan album: $album_name"
     fi
 
-    while IFS= read -r -d '' source; do
-      relative=${source#"$album_path"}; relative=${relative#/}
-      thumbnail="$thumbs_dir/$album_name/$relative.webp"
-      expected_thumbnails["$thumbnail"]=1
-      expected_thumbnails["${thumbnail%.webp}_medium.webp"]=1
-      if thumbnail_needs_web_video "$source"; then
-        expected_thumbnails["${thumbnail%.webp}.web.mp4"]=1
-      fi
-    done <"$media_file"
+    thumbnail_add_expected_outputs "$album_path" "$album_name" "$thumbs_dir" "$media_file" expected_thumbnails
     rm -f -- "$media_file"
   done < <(find -P "$root_album_path" -type d -print0 | sort -z)
 done

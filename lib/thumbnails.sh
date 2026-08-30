@@ -264,7 +264,7 @@ thumbnail_checksums_need_update() {
 
 thumbnail_cleanup_stale() {
   local albums_dir=$1 thumbs_dir=$2 expected_name=$3
-  local thumbnail stale_relative stale_thumbnail_dir cleanup_removed source_path reason album_relative
+  local thumbnail stale_relative source_path reason
   local -n expected="$expected_name"
 
   [[ -d "$thumbs_dir" ]] || return 0
@@ -282,31 +282,33 @@ thumbnail_cleanup_stale() {
     fi
     printf '\tRemoving stale thumbnail: %s (%s)\n' "$stale_relative" "$reason"
     rm -f -- "$thumbnail"
-  done < <(find -P "$thumbs_dir" -type f \( -name '*.webp' -o -name '*.avif' -o -name '*.jpg' -o -name '*.mp4' \) -print0)
+  done < <(find -P "$thumbs_dir" -type f -print0)
 
-  while :; do
-    cleanup_removed=0
-    while IFS= read -r -d '' stale_thumbnail_dir; do
-      album_relative=${stale_thumbnail_dir#"$thumbs_dir"/}
-      if [[ -d "$albums_dir/$album_relative" ]]; then
-        reason='empty directory'
-      else
-        reason='no such original album'
-      fi
-      printf '\tRemoving stale thumbnail directory: %s (%s)\n' "$album_relative" "$reason"
-      if rmdir -- "$stale_thumbnail_dir"; then cleanup_removed=1; fi
-    done < <(find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print0)
-    ((cleanup_removed)) || break
-  done
+  find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print -delete
+}
+
+thumbnail_add_expected_outputs() {
+  local album_path=$1 album_name=$2 thumbs_dir=$3 media_file=$4 expected_name=$5
+  local source relative thumbnail
+  local -n output="$expected_name"
+
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_path"}; relative=${relative#/}
+    thumbnail="$thumbs_dir/$album_name/$relative.webp"
+    output["$thumbnail"]=1
+    output["${thumbnail%.webp}_medium.webp"]=1
+    if thumbnail_needs_web_video "$source"; then
+      output["${thumbnail%.webp}.web.mp4"]=1
+    fi
+  done <"$media_file"
 }
 
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
-  local root_album_path album_path album_name source relative thumb_path medium_path web_video_path media_file
-  local thumbnail stale_relative
+  local root_album_path album_path album_name source relative media_file
   local metadata stale_metadata_relative
-  local found_media cleanup_removed
+  local cleanup_removed
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
 
   if command -v magick >/dev/null; then
@@ -330,30 +332,21 @@ update_thumbnails() {
     [[ -d "$root_album_path" ]] || continue
     while IFS= read -r -d '' album_path; do
       album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
-      found_media=0
       media_file=$(mktemp)
       if ! { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z >"$media_file"; then
         rm -f -- "$media_file"
         thumbnail_failed=1
         continue
       fi
-      while IFS= read -r -d '' source; do
-        found_media=1
-        relative=${source#"$album_path"}; relative=${relative#/}
-        thumb_path="$thumbs_dir/$album_name/$relative.webp"
-        medium_path="${thumb_path%.webp}_medium.webp"
-        expected_thumbnails["$thumb_path"]=1
-        expected_thumbnails["$medium_path"]=1
-        expected_metadata["$metadata_dir/$album_name/$relative.json"]=1
-        if thumbnail_needs_web_video "$source"; then
-          web_video_path="${thumb_path%.webp}.web.mp4"
-          expected_thumbnails["$web_video_path"]=1
-        fi
-      done <"$media_file"
-      if (( ! found_media )); then
+      if [[ ! -s "$media_file" ]]; then
         rm -f -- "$media_file"
         continue
       fi
+      thumbnail_add_expected_outputs "$album_path" "$album_name" "$thumbs_dir" "$media_file" expected_thumbnails
+      while IFS= read -r -d '' source; do
+        relative=${source#"$album_path"}; relative=${relative#/}
+        expected_metadata["$metadata_dir/$album_name/$relative.json"]=1
+      done <"$media_file"
       expected_checksums["$metadata_dir/$album_name/md5sums.txt"]=1
       echo "Scanning album: $album_name"
       if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file"; then
