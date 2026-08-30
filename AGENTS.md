@@ -23,7 +23,10 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
   deleted albums.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
   thumbnail, medium, and web-video outputs. It exits with status 1 if any are
-  missing.
+  missing; it does not modify the thumbnail tree.
+- `./cleanup-thumbnails.sh` removes thumbnail files and empty thumbnail
+  directories that no longer correspond to albums or media files. It does not
+  modify metadata.
 - `./generate-admin-gallery.sh` generates the admin gallery.
 - `./generate-guest-gallery.sh` generates the guest gallery using `GUEST_ALBUMS`.
 - `./delete-admin-gallery.sh` and `./delete-guest-gallery.sh` delete only the
@@ -141,10 +144,9 @@ albums publishes after its own fragment is ready, then generates child
 fragments.
 
 Progress output uses one newline-terminated message per fragment. Do not add
-per-image dots because parallel workers would garble the output. Thumbnail
-updates print `Checking for missing thumbnails ...` before listing any missing
-outputs. Missing-output checking is performed by the separate
-`check-missing-thumbnails.sh` command.
+per-image dots because parallel workers would garble the output. The separate
+`check-missing-thumbnails.sh` command prints `Checking for missing thumbnails
+...` before listing any missing outputs.
 
 ## Validation
 

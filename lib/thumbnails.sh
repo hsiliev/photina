@@ -262,6 +262,30 @@ thumbnail_checksums_need_update() {
   return 1
 }
 
+thumbnail_cleanup_stale() {
+  local thumbs_dir=$1 expected_name=$2
+  local thumbnail stale_relative stale_thumbnail_dir cleanup_removed
+  local -n expected="$expected_name"
+
+  [[ -d "$thumbs_dir" ]] || return 0
+
+  while IFS= read -r -d '' thumbnail; do
+    [[ -n ${expected["$thumbnail"]+present} ]] && continue
+    stale_relative=${thumbnail#"$thumbs_dir"/}
+    printf '\tRemoving stale thumbnail: %s\n' "$stale_relative"
+    rm -f -- "$thumbnail"
+  done < <(find -P "$thumbs_dir" -type f \( -name '*.webp' -o -name '*.avif' -o -name '*.jpg' -o -name '*.mp4' \) -print0)
+
+  while :; do
+    cleanup_removed=0
+    while IFS= read -r -d '' stale_thumbnail_dir; do
+      printf '\tRemoving stale thumbnail directory: %s\n' "${stale_thumbnail_dir#"$thumbs_dir"/}"
+      if rmdir -- "$stale_thumbnail_dir"; then cleanup_removed=1; fi
+    done < <(find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print0)
+    ((cleanup_removed)) || break
+  done
+}
+
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
@@ -334,21 +358,7 @@ update_thumbnails() {
       rm -f -- "$media_file"
     done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
-  while IFS= read -r -d '' thumbnail; do
-    [[ -n ${expected_thumbnails["$thumbnail"]+present} ]] && continue
-    stale_relative=${thumbnail#"$thumbs_dir"/}
-    printf '\tRemoving stale thumbnail: %s\n' "$stale_relative"
-    rm -f -- "$thumbnail"
-  done < <(find -P "$thumbs_dir" -type f \( -name '*.webp' -o -name '*.avif' -o -name '*.jpg' -o -name '*.mp4' \) -print0)
-
-  while :; do
-    cleanup_removed=0
-    while IFS= read -r -d '' stale_thumbnail_dir; do
-      printf '\tRemoving stale thumbnail directory: %s\n' "${stale_thumbnail_dir#"$thumbs_dir"/}"
-      if rmdir -- "$stale_thumbnail_dir"; then cleanup_removed=1; fi
-    done < <(find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print0)
-    ((cleanup_removed)) || break
-  done
+  thumbnail_cleanup_stale "$thumbs_dir" expected_thumbnails
 
   while IFS= read -r -d '' metadata; do
     [[ -n ${expected_metadata["$metadata"]+present} ]] && continue

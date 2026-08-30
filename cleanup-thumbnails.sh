@@ -15,7 +15,7 @@ config_mode=$((0$config_mode))
 # shellcheck disable=SC1091
 source "$config_file"
 
-[[ $# -eq 0 ]] || die 'usage: check-missing-thumbnails.sh'
+[[ $# -eq 0 ]] || die 'usage: cleanup-thumbnails.sh'
 [[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
 [[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
 command -v find >/dev/null || die 'find is required'
@@ -28,7 +28,6 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
 
-missing=0
 declare -A expected_thumbnails=()
 shopt -s nullglob
 for root_album_path in "$albums_dir"/*/; do
@@ -55,14 +54,5 @@ for root_album_path in "$albums_dir"/*/; do
   done < <(find -P "$root_album_path" -type d -print0 | sort -z)
 done
 
-echo 'Checking for missing thumbnails ...'
-for thumbnail in "${!expected_thumbnails[@]}"; do
-  [[ -f "$thumbnail" ]] && continue
-  printf 'Missing thumbnail: %s\n' "${thumbnail#"$thumbs_dir"/}"
-  missing=1
-done
-
-if (( missing != 0 )); then
-  exit 1
-fi
-echo 'No missing thumbnails found'
+echo "Cleaning redundant thumbnails in $thumbs_dir"
+thumbnail_cleanup_stale "$thumbs_dir" expected_thumbnails
