@@ -95,8 +95,7 @@ gallery_render_album() {
   done < <(gallery_find_child_albums "$album_dir")
 
   if ((${#sources[@]})); then
-    gallery_next_id=$((gallery_next_id + 1))
-    gallery_id="gallery-$gallery_next_id"
+    gallery_id=$(printf '%s' "$album_rel" | cksum | awk '{print "gallery-" $1 "-" $2}')
     gallery_print_template items-start.html "$gallery_id" "$gallery_id" \
       "$thumbnail_width" "$thumbnail_height"
     item_index=0
@@ -112,30 +111,51 @@ gallery_render_album() {
   gallery_print_template album-end.html
 }
 
+gallery_generate_nested_fragment() {
+  local child=$1 child_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
+  local fragment_tmp fragment_path
+
+  fragment_path="$fragment_dir/$child_rel.html"
+  printf 'Generating album fragment: %s ...' "$child_rel"
+  gallery_image_count=0
+  if [[ -f "$fragment_path" ]] &&
+    grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
+    ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
+    echo ' skipped'
+    gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
+    return
+  fi
+  mkdir -p -- "$(dirname -- "$fragment_path")"
+  fragment_tmp=$(mktemp "$(dirname -- "$fragment_path")/.fragment-XXXXXX")
+  gallery_render_album "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" \
+    "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
+  printf '\n'
+  mv -f -- "$fragment_tmp" "$fragment_path"
+  gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
+}
+
 gallery_write_nested_fragments() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
-  local child child_name child_rel fragment_tmp fragment_path
+  local child child_name child_rel status=0 workers pid
+  local -a pids=()
+  workers=$(gallery_core_count)
+  (( workers > 5 )) && workers=5
 
   while IFS= read -r -d '' child; do
     child_name=${child%/}; child_name=${child_name##*/}
     child_rel="$album_rel/$child_name"
     gallery_album_is_visible "$child_rel" || continue
-    fragment_path="$fragment_dir/$child_rel.html"
-    printf 'Generating album fragment: %s ...' "$child_rel"
-    gallery_image_count=0
-    if [[ -f "$fragment_path" ]] &&
-      grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
-      ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
-      echo ' skipped'
-      gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
-      continue
-    fi
-    mkdir -p -- "$(dirname -- "$fragment_path")"
-    fragment_tmp=$(mktemp "$(dirname -- "$fragment_path")/.fragment-XXXXXX")
-    gallery_render_album "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" \
-      "$thumbnail_size" "$thumbnail_display_mode" 3>&1 >"$fragment_tmp"
-    printf '\n'
-    mv -f -- "$fragment_tmp" "$fragment_path"
-    gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
+    while ((${#pids[@]} >= workers)); do
+      if ! wait "${pids[0]}"; then status=1; fi
+      pids=("${pids[@]:1}")
+    done
+    gallery_generate_nested_fragment "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" \
+      "$output_dir" "$fragment_dir" &
+    pids+=("$!")
   done < <(gallery_find_child_albums "$album_dir")
+
+  for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then status=1; fi
+  done
+  return "$status"
 }

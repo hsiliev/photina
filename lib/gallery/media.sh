@@ -143,7 +143,4 @@ gallery_render_media_item() {
   fi
 
   gallery_image_count=$((gallery_image_count + 1))
-  if (( gallery_image_count % 10 == 0 )); then
-    printf '.' >&3
-  fi
 }

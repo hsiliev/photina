@@ -18,6 +18,15 @@ gallery_file_version() {
   stat -c '%Y' -- "$1" 2>/dev/null || printf '0'
 }
 
+gallery_core_count() {
+  local cores=1
+  if command -v nproc >/dev/null; then
+    cores=$(nproc)
+  fi
+  (( cores > 0 )) || cores=1
+  printf '%s\n' "$cores"
+}
+
 gallery_thumbnail_url() {
   local thumbnail_path=$1 thumbnail_rel=$2
   printf '/thumbnails/%s?v=%s' "$(gallery_url_escape_path "$thumbnail_rel")" \
