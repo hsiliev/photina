@@ -96,6 +96,21 @@ gallery_album_needs_regeneration() {
   return 1
 }
 
+gallery_cleanup_stale_fragments() {
+  local albums_dir=$1 fragment_dir=$2 fragment fragment_rel album_rel
+
+  [[ -d "$fragment_dir" ]] || return 0
+  printf 'Checking for stale gallery fragments in %s ...\n' "$fragment_dir"
+  while IFS= read -r -d '' fragment; do
+    fragment_rel=${fragment#"$fragment_dir"/}
+    album_rel=${fragment_rel%.html}
+    [[ -d "$albums_dir/$album_rel" ]] && continue
+    printf '\tRemoving stale gallery fragment: %s (no such original album)\n' "$fragment_rel"
+    rm -f -- "$fragment"
+  done < <(find -P "$fragment_dir" -type f -name '*.html' -print0)
+  find -P "$fragment_dir" -mindepth 1 -depth -type d -empty -print -delete
+}
+
 gallery_generate_parent_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6 index_template=$7
   local child child_name child_urls= preview_url child_preview_url
@@ -130,7 +145,7 @@ gallery_generate_leaf_album() {
   if [[ -f "$fragment_path" ]] &&
     grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
     ! gallery_album_needs_regeneration "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
-    echo ' skipped'
+    :
   else
     fragment_tmp=$(mktemp "$fragment_dir/.fragment-XXXXXX")
     gallery_render_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" \
@@ -171,6 +186,7 @@ generate_gallery() {
   cp -- "$script_dir/assets/favicon.png" "$output_dir/assets/favicon.png"
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
+  gallery_cleanup_stale_fragments "$albums_dir" "$fragment_dir"
   album_list=
   index_template=$(<"$script_dir/templates/index.html.template")
   index_template=${index_template//__THUMBNAIL_SIZE__/$thumbnail_size}

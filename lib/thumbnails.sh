@@ -269,6 +269,7 @@ thumbnail_cleanup_stale() {
 
   [[ -d "$thumbs_dir" ]] || return 0
 
+  printf '\tChecking for stale thumbnail files in %s ...\n' "$thumbs_dir"
   while IFS= read -r -d '' thumbnail; do
     [[ -n ${expected["$thumbnail"]+present} ]] && continue
     stale_relative=${thumbnail#"$thumbs_dir"/}
@@ -284,6 +285,7 @@ thumbnail_cleanup_stale() {
     rm -f -- "$thumbnail"
   done < <(find -P "$thumbs_dir" -type f -print0)
 
+  printf '\tRemoving empty thumbnail directories in %s ...\n' "$thumbs_dir"
   find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print -delete
 }
 

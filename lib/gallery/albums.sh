@@ -121,7 +121,6 @@ gallery_generate_nested_fragment() {
   if [[ -f "$fragment_path" ]] &&
     grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
     ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
-    echo ' skipped'
     gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
     return
   fi

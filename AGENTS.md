@@ -30,7 +30,8 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
   Cleanup output identifies whether each stale thumbnail is from a missing
   original album or image for files. The thumbnail and metadata cache directories contain
   generated content only, so stale-thumbnail cleanup compares every file under
-  the thumbnail cache, regardless of filename extension.
+  the thumbnail cache, regardless of filename extension, and reports progress
+  for file and directory cleanup phases.
   Expected thumbnail paths are built by a shared helper used by the update,
   cleanup, and missing-thumbnail-check scripts.
 - `./generate-admin-gallery.sh` generates the admin gallery.
@@ -65,6 +66,10 @@ removed, or changed media.
   values during generation.
 - `lib/gallery/core.sh` provides media discovery, URL escaping, metadata date
   lookup, and common helpers.
+
+Each gallery generation removes stale `.html` fragments whose corresponding
+album directory no longer exists, then removes empty fragment directories.
+The index and current fragments are generated afterward.
 
 Generated fragments are intentionally shallow: a fragment contains the
 current album's own image gallery and immediate child album summaries. Child
@@ -153,6 +158,7 @@ Progress output uses one newline-terminated message per fragment. Do not add
 per-image dots because parallel workers would garble the output. The separate
 `check-missing-thumbnails.sh` command prints `Checking for missing thumbnails
 ...` before listing any missing outputs.
+Reused gallery fragments do not print an additional `skipped` line.
 
 ## Validation
 

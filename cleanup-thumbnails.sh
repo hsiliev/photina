@@ -47,5 +47,5 @@ for root_album_path in "$albums_dir"/*/; do
   done < <(find -P "$root_album_path" -type d -print0 | sort -z)
 done
 
-echo "Cleaning redundant thumbnails in $thumbs_dir"
+echo "Cleaning redundant thumbnails in $thumbs_dir ..."
 thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
