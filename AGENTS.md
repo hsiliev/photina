@@ -18,7 +18,9 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
 ## Main commands
 
 - `./update-thumbnails.sh` generates/reuses thumbnails, medium images, web
-  video previews, EXIF metadata, and `md5sums.txt` manifests.
+  video previews, EXIF metadata, and `md5sums.txt` manifests. It also removes
+  stale thumbnail/metadata files and empty thumbnail/metadata directories for
+  deleted albums.
 - `./generate-admin-gallery.sh` generates the admin gallery.
 - `./generate-guest-gallery.sh` generates the guest gallery using `GUEST_ALBUMS`.
 - `./delete-admin-gallery.sh` and `./delete-guest-gallery.sh` delete only the

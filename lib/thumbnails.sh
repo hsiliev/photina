@@ -248,7 +248,7 @@ update_thumbnails() {
   local root_album_path album_path album_name source relative thumb_path medium_path web_video_path
   local thumbnail stale_relative missing_path missing_thumbnails=0
   local metadata stale_metadata_relative
-  local found_media
+  local found_media cleanup_removed
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
 
   if command -v magick >/dev/null; then
@@ -336,6 +336,15 @@ update_thumbnails() {
     rm -f -- "$thumbnail"
   done < <(find -P "$thumbs_dir" -type f \( -name '*.webp' -o -name '*.avif' -o -name '*.jpg' -o -name '*.mp4' \) -print0)
 
+  while :; do
+    cleanup_removed=0
+    while IFS= read -r -d '' stale_thumbnail_dir; do
+      printf '\tRemoving stale thumbnail directory: %s\n' "${stale_thumbnail_dir#"$thumbs_dir"/}"
+      if rmdir -- "$stale_thumbnail_dir"; then cleanup_removed=1; fi
+    done < <(find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print0)
+    ((cleanup_removed)) || break
+  done
+
   while IFS= read -r -d '' metadata; do
     [[ -n ${expected_metadata["$metadata"]+present} ]] && continue
     stale_metadata_relative=${metadata#"$metadata_dir"/}
@@ -349,6 +358,15 @@ update_thumbnails() {
     printf '\tRemoving stale checksum manifest: %s\n' "$stale_relative"
     rm -f -- "$checksum_file"
   done < <(find -P "$metadata_dir" -type f -name 'md5sums.txt' -print0)
+
+  while :; do
+    cleanup_removed=0
+    while IFS= read -r -d '' stale_metadata_dir; do
+      printf '\tRemoving stale metadata directory: %s\n' "${stale_metadata_dir#"$metadata_dir"/}"
+      if rmdir -- "$stale_metadata_dir"; then cleanup_removed=1; fi
+    done < <(find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print0)
+    ((cleanup_removed)) || break
+  done
 
   echo 'Thumbnail update complete'
 }
