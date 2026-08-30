@@ -71,6 +71,9 @@ Regenerate one output independently when needed:
 
 The gallery generators reuse existing gallery fragments when their generated
 metadata is present, and recreate fragments whose metadata is missing.
+They publish a valid index skeleton before scanning albums and update it after
+each top-level album, so an already configured Caddy can serve the gallery
+while generation continues.
 
 Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in

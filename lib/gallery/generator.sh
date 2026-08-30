@@ -49,6 +49,17 @@ gallery_append_album_list_item() {
   album_list+="$item"
 }
 
+gallery_write_index() {
+  local output_dir=$1 index_template=$2
+  local index_path index_tmp rendered_index
+
+  index_path="$output_dir/index.html"
+  index_tmp=$(mktemp "$output_dir/.index-XXXXXX")
+  rendered_index=${index_template//__ALBUM_LIST__/$album_list}
+  printf '%s' "$rendered_index" >"$index_tmp"
+  mv -f -- "$index_tmp" "$index_path"
+}
+
 gallery_album_needs_regeneration() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4
   local source relative
@@ -120,7 +131,7 @@ generate_gallery() {
   local script_dir=$1 albums_dir=$2 output_dir=$3 thumbs_dir=$4 metadata_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
   shift 7
   local -a allowed_albums=("$@")
-  local index_tmp index_template fragment_dir album_path album_name
+  local index_template fragment_dir album_path album_name
   local -a direct_media=()
   gallery_next_id=0
   gallery_allowed_albums=("${allowed_albums[@]}")
@@ -132,6 +143,11 @@ generate_gallery() {
   fragment_dir="$output_dir/albums"
   mkdir -p -- "$fragment_dir"
   album_list=
+  index_template=$(<"$script_dir/templates/index.html.template")
+  index_template=${index_template//__THUMBNAIL_SIZE__/$thumbnail_size}
+  [[ "$index_template" == *'__ALBUM_LIST__'* ]] || die 'gallery template is missing __ALBUM_LIST__'
+  printf '%s\n' 'Writing gallery index skeleton'
+  gallery_write_index "$output_dir" "$index_template"
   while IFS= read -r -d '' album_path; do
     album_name=${album_path%/}; album_name=${album_name##*/}
     gallery_album_is_visible "$album_name" || continue
@@ -142,18 +158,8 @@ generate_gallery() {
     else
       gallery_generate_leaf_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
     fi
+    gallery_write_index "$output_dir" "$index_template"
   done < <(gallery_find_child_albums "$albums_dir")
-
-  index_tmp=$(mktemp)
-  trap 'rm -f -- "$index_tmp"' EXIT
-  index_template=$(<"$script_dir/templates/index.html.template")
-  index_template=${index_template//__THUMBNAIL_SIZE__/$thumbnail_size}
-  index_template=${index_template//__ALBUM_LIST__/$album_list}
-  [[ "$index_template" != *'__ALBUM_LIST__'* ]] || die 'gallery template is missing __ALBUM_LIST__'
-  echo 'Writing gallery index'
-  printf '%s' "$index_template" >"$index_tmp"
-  mv -f -- "$index_tmp" "$output_dir/index.html"
-  trap - EXIT
   echo 'Gallery generation complete'
   printf 'Gallery written to %s\n' "$output_dir/index.html"
 }
