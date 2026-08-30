@@ -1,5 +1,13 @@
 # Photina project notes
 
+## Maintenance requirement
+
+After every code or behavior change, update this `AGENTS.md` in the same
+change. Record any new commands, architectural behavior, invariants,
+performance decisions, compatibility requirements, and validation steps. Keep
+the document consistent with the actual implementation before completing the
+task.
+
 ## Purpose
 
 Photina is a Bash-based static photo/video gallery generator. Source media is
