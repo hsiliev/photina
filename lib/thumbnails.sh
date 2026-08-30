@@ -334,6 +334,7 @@ update_thumbnails() {
       rm -f -- "$media_file"
     done < <(find -P "$root_album_path" -type d -print0 | sort -z)
   done
+  echo 'Checking for missing thumbnails ...'
   for thumbnail in "${!expected_thumbnails[@]}"; do
     [[ -f "$thumbnail" ]] && continue
     printf 'Missing thumbnail: %s\n' "${thumbnail#"$thumbs_dir"/}"

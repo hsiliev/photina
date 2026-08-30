@@ -138,7 +138,9 @@ albums publishes after its own fragment is ready, then generates child
 fragments.
 
 Progress output uses one newline-terminated message per fragment. Do not add
-per-image dots because parallel workers would garble the output.
+per-image dots because parallel workers would garble the output. Thumbnail
+updates print `Checking for missing thumbnails ...` before listing any missing
+outputs.
 
 ## Validation
 
