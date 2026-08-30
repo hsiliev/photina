@@ -106,8 +106,10 @@ gallery_find_first_media() {
 
 gallery_media_date() {
   local metadata_path=$1
+  local -a metadata_values=()
   [[ -f "$metadata_path" ]] || return 0
-  gallery_metadata_values "$metadata_path" | sed -n '2p'
+  gallery_read_metadata "$metadata_path" metadata_values
+  printf '%s\n' "${metadata_values[1]:-}"
 }
 
 gallery_find_media_by_date() {

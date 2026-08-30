@@ -11,6 +11,7 @@ gallery_album_preview_url() {
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
   local album_name source child child_name preview_source preview_url gallery_id item_index child_count thumbnail_width thumbnail_height
+  local child_preview_url child_url child_child_count child_child child_child_name
   local -a sources=() preview_sources=()
 
   printf '<!-- photina-fragment-version: %s -->\n' "$gallery_fragment_version"
@@ -24,6 +25,10 @@ gallery_render_album() {
   esac
   gallery_image_count=0
   if gallery_album_content_is_allowed "$album_rel"; then
+    while IFS= read -r -d '' source; do
+      relative=${source#"$album_dir"}; relative=${relative#/}
+      gallery_media_date "$metadata_dir/$album_rel/$relative.json" >/dev/null
+    done < <(gallery_find_media "$album_dir")
     while IFS= read -r -d '' source; do sources+=("$source"); done < <(gallery_find_media_by_date "$album_dir" "$album_rel" "$metadata_dir")
     while IFS= read -r -d '' source; do preview_sources+=("$source"); done < <(gallery_find_album_cover "$album_dir")
     if ((${#preview_sources[@]} == 0)); then
@@ -60,8 +65,28 @@ gallery_render_album() {
   while IFS= read -r -d '' child; do
     child_name=${child%/}; child_name=${child_name##*/}
     gallery_album_is_visible "$album_rel/$child_name" || continue
-    gallery_render_album "$child" "$album_rel/$child_name" "$thumbs_dir" "$metadata_dir" \
-      "$output_dir" "$thumbnail_size" "$thumbnail_display_mode"
+    child_preview_url=$(gallery_nested_album_preview_url "$child" "$album_rel/$child_name" "$thumbs_dir")
+    child_preview_url=$(gallery_html_escape "$child_preview_url")
+    child_url="$gallery_output_url_prefix/albums/$(gallery_url_escape_path "$album_rel/$child_name").html"
+    child_child_count=0
+    while IFS= read -r -d '' child_child; do
+      child_child_name=${child_child%/}; child_child_name=${child_child_name##*/}
+      gallery_album_is_visible "$album_rel/$child_name/$child_child_name" || continue
+      child_child_count=$((child_child_count + 1))
+    done < <(gallery_find_child_albums "$child")
+    if [[ -n "$child_preview_url" ]]; then
+      if (( child_child_count > 0 )); then
+        gallery_print_template album-lazy-parent-preview.html "$child_url" "$child_preview_url" \
+          "$(gallery_html_escape "$child_name")"
+      else
+        gallery_print_template album-lazy-leaf-preview.html "$child_url" "$child_preview_url" \
+          "$(gallery_html_escape "$child_name")"
+      fi
+    elif (( child_child_count > 0 )); then
+      gallery_print_template album-lazy-parent.html "$child_url" "$(gallery_html_escape "$child_name")"
+    else
+      gallery_print_template album-lazy-leaf.html "$child_url" "$(gallery_html_escape "$child_name")"
+    fi
   done < <(gallery_find_child_albums "$album_dir")
 
   if ((${#sources[@]})); then
@@ -76,6 +101,7 @@ gallery_render_album() {
       item_index=$((item_index + 1))
     done
     gallery_print_template items-end.html
+    gallery_metadata_cache_clear_album "$metadata_dir/$album_rel"
   fi
 
   gallery_print_template album-end.html

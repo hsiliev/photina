@@ -1,11 +1,76 @@
 #!/usr/bin/env bash
 
+declare -A gallery_metadata_cache_ready=()
+declare -A gallery_metadata_cache_description=()
+declare -A gallery_metadata_cache_time=()
+declare -A gallery_metadata_cache_make=()
+declare -A gallery_metadata_cache_model=()
+declare -A gallery_metadata_cache_lens=()
+declare -A gallery_metadata_cache_exposure=()
+declare -A gallery_metadata_cache_fnumber=()
+declare -A gallery_metadata_cache_iso=()
+declare -A gallery_metadata_cache_focal_length=()
+declare -A gallery_metadata_cache_flash=()
+declare -A gallery_metadata_cache_latitude=()
+declare -A gallery_metadata_cache_longitude=()
+
+gallery_metadata_cache_clear_album() {
+  local album_prefix=$1 metadata_path
+  album_prefix="${album_prefix%/}/"
+  for metadata_path in "${!gallery_metadata_cache_ready[@]}"; do
+    [[ "$metadata_path" == "$album_prefix"* ]] || continue
+    unset 'gallery_metadata_cache_ready[$metadata_path]'
+    unset 'gallery_metadata_cache_description[$metadata_path]'
+    unset 'gallery_metadata_cache_time[$metadata_path]'
+    unset 'gallery_metadata_cache_make[$metadata_path]'
+    unset 'gallery_metadata_cache_model[$metadata_path]'
+    unset 'gallery_metadata_cache_lens[$metadata_path]'
+    unset 'gallery_metadata_cache_exposure[$metadata_path]'
+    unset 'gallery_metadata_cache_fnumber[$metadata_path]'
+    unset 'gallery_metadata_cache_iso[$metadata_path]'
+    unset 'gallery_metadata_cache_focal_length[$metadata_path]'
+    unset 'gallery_metadata_cache_flash[$metadata_path]'
+    unset 'gallery_metadata_cache_latitude[$metadata_path]'
+    unset 'gallery_metadata_cache_longitude[$metadata_path]'
+  done
+}
+
 gallery_read_metadata() {
   local metadata_path=$1
   local -n values=$2
   values=()
   [[ -f "$metadata_path" ]] || return 0
+  if [[ -n "${gallery_metadata_cache_ready["$metadata_path"]+present}" ]]; then
+    values=(
+      "${gallery_metadata_cache_description["$metadata_path"]}"
+      "${gallery_metadata_cache_time["$metadata_path"]}"
+      "${gallery_metadata_cache_make["$metadata_path"]}"
+      "${gallery_metadata_cache_model["$metadata_path"]}"
+      "${gallery_metadata_cache_lens["$metadata_path"]}"
+      "${gallery_metadata_cache_exposure["$metadata_path"]}"
+      "${gallery_metadata_cache_fnumber["$metadata_path"]}"
+      "${gallery_metadata_cache_iso["$metadata_path"]}"
+      "${gallery_metadata_cache_focal_length["$metadata_path"]}"
+      "${gallery_metadata_cache_flash["$metadata_path"]}"
+      "${gallery_metadata_cache_latitude["$metadata_path"]}"
+      "${gallery_metadata_cache_longitude["$metadata_path"]}"
+    )
+    return 0
+  fi
   mapfile -t values < <(gallery_metadata_values "$metadata_path")
+  gallery_metadata_cache_ready["$metadata_path"]=1
+  gallery_metadata_cache_description["$metadata_path"]=${values[0]:-}
+  gallery_metadata_cache_time["$metadata_path"]=${values[1]:-}
+  gallery_metadata_cache_make["$metadata_path"]=${values[2]:-}
+  gallery_metadata_cache_model["$metadata_path"]=${values[3]:-}
+  gallery_metadata_cache_lens["$metadata_path"]=${values[4]:-}
+  gallery_metadata_cache_exposure["$metadata_path"]=${values[5]:-}
+  gallery_metadata_cache_fnumber["$metadata_path"]=${values[6]:-}
+  gallery_metadata_cache_iso["$metadata_path"]=${values[7]:-}
+  gallery_metadata_cache_focal_length["$metadata_path"]=${values[8]:-}
+  gallery_metadata_cache_flash["$metadata_path"]=${values[9]:-}
+  gallery_metadata_cache_latitude["$metadata_path"]=${values[10]:-}
+  gallery_metadata_cache_longitude["$metadata_path"]=${values[11]:-}
 }
 
 gallery_render_media_item() {

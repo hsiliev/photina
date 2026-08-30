@@ -76,11 +76,44 @@ if (photinaAlbums.length === 0) {
         while (root.firstChild) container.append(root.firstChild);
         initializeScripts(scripts, root, container.closest('details'));
         activateVisibleAlbumThumbnails(container);
+        initializeLazyAlbums(container);
         return;
       }
     }
     appendFragment(container, fragment);
     activateVisibleAlbumThumbnails(container);
+    initializeLazyAlbums(container);
+  };
+  const initializeLazyAlbums = container => {
+    container.querySelectorAll('details.album[data-url]').forEach(details => {
+      if (details.dataset.lazyInitialized) return;
+      details.dataset.lazyInitialized = 'true';
+      const contents = details.querySelector(':scope > .album-contents');
+      let loaded = false;
+      let loading = null;
+      let generation = 0;
+      const loadContents = () => {
+        if (loaded || loading || !contents) return loading;
+        const currentGeneration = ++generation;
+        const isCurrent = () => details.open && currentGeneration === generation;
+        loading = loadInto(contents, details.dataset.url, true, isCurrent).then(() => {
+          if (isCurrent()) loaded = true;
+        }).catch(() => {
+          if (isCurrent()) contents.textContent = 'Unable to load this album.';
+        });
+        return loading;
+      };
+      details.addEventListener('toggle', () => {
+        if (details.open) {
+          loadContents();
+        } else {
+          generation++;
+          contents?.replaceChildren();
+          loaded = false;
+          loading = null;
+        }
+      });
+    });
   };
   const renderAlbum = async album => {
     const details = document.createElement('details');
