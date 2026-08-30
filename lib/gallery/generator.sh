@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-gallery_fragment_version=4
+gallery_fragment_version=6
 
 gallery_album_is_visible() {
   local album_rel=$1 allowed
@@ -74,24 +74,33 @@ gallery_write_index() {
   mv -f -- "$index_tmp" "$index_path"
 }
 
-gallery_album_needs_regeneration() {
-  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4
-  local source relative
+gallery_album_manifest_checksum() {
+  local album_name=$1 metadata_dir=$2 manifest
 
-  while IFS= read -r -d '' source; do
-    relative=${source#"$album_path"}; relative=${relative#/}
-    [[ -f "$metadata_dir/$album_name/$relative.json" ]] || return 0
-  done < <(gallery_find_media "$album_path")
+  manifest="$metadata_dir/$album_name/md5sums.txt"
+
+  [[ -f "$manifest" ]] || return 1
+  cksum -- "$manifest" | awk '{print $1 ":" $2}'
+}
+
+gallery_album_needs_regeneration() {
+  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 fragment_path=${5:-}
+
+  if [[ -n "$fragment_path" ]]; then
+    [[ -f "$fragment_path" ]] || return 0
+    local manifest_checksum
+    manifest_checksum=$(gallery_album_manifest_checksum "$album_name" "$metadata_dir") || return 0
+    grep -qF -- "<!-- photina-media-manifest: $manifest_checksum -->" "$fragment_path" || return 0
+  fi
 
   return 1
 }
 
 gallery_generate_parent_album() {
-  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
+  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6 index_template=$7
   local child child_name child_urls= preview_url child_preview_url
 
   printf 'Generating album fragment: %s ...\n' "$album_name"
-  gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   preview_url=$(gallery_nested_album_preview_url "$album_path" "$album_name" "$thumbs_dir")
   child_urls=
   while IFS= read -r -d '' child; do
@@ -107,6 +116,8 @@ gallery_generate_parent_album() {
   done < <(gallery_find_child_albums "$album_path")
   gallery_append_album_list_item "$(printf '{"title":"%s","thumbnail":"%s","children":[%s]}' \
     "$(gallery_js_escape "$album_name")" "$(gallery_js_escape "$preview_url")" "$child_urls")"
+  gallery_write_index "$output_dir" "$index_template"
+  gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
 }
 
 gallery_generate_leaf_album() {
@@ -118,7 +129,7 @@ gallery_generate_leaf_album() {
   fragment_path="$fragment_dir/$fragment_rel"
   if [[ -f "$fragment_path" ]] &&
     grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
-    ! gallery_album_needs_regeneration "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir"; then
+    ! gallery_album_needs_regeneration "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
     echo ' skipped'
     gallery_write_nested_fragments "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
   else
@@ -173,7 +184,7 @@ generate_gallery() {
     direct_media=()
     while IFS= read -r -d '' source; do direct_media+=("$source"); done < <(gallery_find_media "$album_path")
     if ((${#direct_media[@]} == 0)); then
-      gallery_generate_parent_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
+      gallery_generate_parent_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir" "$index_template"
     else
       gallery_generate_leaf_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
     fi

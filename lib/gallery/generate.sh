@@ -68,6 +68,7 @@ printf '  CADDYFILE: %s\n' "$caddyfile"
 
 command -v find >/dev/null || die "find is required"
 command -v realpath >/dev/null || die "realpath is required"
+command -v cksum >/dev/null || die "cksum is required to track gallery changes"
 command -v jq >/dev/null || die "jq is required to read image metadata"
 command -v caddy >/dev/null || die "caddy is required to hash passwords and update $caddyfile"
 command -v sudo >/dev/null || die "sudo is required to set ownership and permissions on $caddyfile"

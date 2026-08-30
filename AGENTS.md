@@ -1,0 +1,132 @@
+# Photina project notes
+
+## Purpose
+
+Photina is a Bash-based static photo/video gallery generator. Source media is
+stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
+`THUMBNAILS_DIR` and `METADATA_DIR`; gallery HTML is written under
+`OUTPUT_DIR/admin` and `OUTPUT_DIR/guest`.
+
+## Main commands
+
+- `./update-thumbnails.sh` generates/reuses thumbnails, medium images, web
+  video previews, EXIF metadata, and `md5sums.txt` manifests.
+- `./generate-admin-gallery.sh` generates the admin gallery.
+- `./generate-guest-gallery.sh` generates the guest gallery using `GUEST_ALBUMS`.
+- `./delete-admin-gallery.sh` and `./delete-guest-gallery.sh` delete only the
+  corresponding generated output directory.
+- `./delete-all-thumbnails-and-metadata.sh` deletes thumbnail and metadata
+  caches; `./delete-album-thumbnails-and-metadata.sh ALBUM` deletes one album's
+  caches.
+
+The normal update sequence is:
+
+```bash
+./update-thumbnails.sh
+./generate-admin-gallery.sh
+./generate-guest-gallery.sh
+```
+
+Run `update-thumbnails.sh` before gallery generation. Gallery regeneration uses
+the per-album `METADATA_DIR/<album>/md5sums.txt` manifest to detect added,
+removed, or changed media.
+
+## Gallery generation architecture
+
+- `lib/gallery/generate.sh` validates configuration, invokes the gallery
+  generator, updates Caddy configuration, and reloads Caddy.
+- `lib/gallery/generator.sh` builds the index, fragments, album URLs, preview
+  URLs, and fragment reuse checks.
+- `lib/gallery/albums.sh` renders album summaries and the current album's own
+  media gallery.
+- `lib/gallery/media.sh` renders the NanoGallery item JSON and caches metadata
+  values during generation.
+- `lib/gallery/core.sh` provides media discovery, URL escaping, metadata date
+  lookup, and common helpers.
+
+Generated fragments are intentionally shallow: a fragment contains the
+current album's own image gallery and immediate child album summaries. Child
+summaries carry a fragment URL and load their contents only when opened in the
+browser. This prevents opening a parent such as `SAP` or `Държави` from loading
+all descendant image galleries.
+
+The child templates are:
+
+- `templates/gallery/album-lazy-parent.html`
+- `templates/gallery/album-lazy-parent-preview.html`
+- `templates/gallery/album-lazy-leaf.html`
+- `templates/gallery/album-lazy-leaf-preview.html`
+
+The browser logic is embedded in `templates/index.html.template`. Album cover
+images use `data-src` and are activated only for visible/immediate albums.
+NanoGallery scripts are initialized only when their containing album opens.
+
+## Progressive publication
+
+`generate_gallery()` writes a valid empty index skeleton before scanning all
+albums. It atomically rewrites `index.html` after each top-level album is
+prepared. Parent album entries are published before their descendant fragments
+finish, so an already configured Caddy can serve the partial gallery during a
+long run. Individual fragments are written to temporary files and moved into
+place atomically.
+
+Because parent entries can appear before child fragments finish, a newly
+published child link may briefly return 404 until that fragment is generated.
+
+## Fragment invalidation
+
+Each fragment begins with internal comments like:
+
+```html
+<!-- photina-fragment-version: 6 -->
+<!-- photina-media-manifest: CHECKSUM:SIZE -->
+```
+
+`gallery_fragment_version` in `lib/gallery/generator.sh` must be incremented
+when fragment structure or lazy-loading markup changes. Fragments are reused
+only when the version matches, the manifest checksum matches the current
+`md5sums.txt`, and the required metadata workflow has been run.
+
+The manifest marker is an internal HTML comment; it does not change metadata,
+thumbnail, or generated NanoGallery item formats.
+
+## Album previews
+
+An explicit `album.jpg` directly inside an album has priority. If it is absent,
+the first available media item is used as a fallback preview. `cover.jpg` is
+not special. Preview URLs point to generated thumbnail files and may initially
+have a zero timestamp if thumbnail generation has not completed yet.
+
+## Performance considerations
+
+Gallery generation is mostly filesystem and shell/process overhead. Thumbnail
+generation is separate and is CPU-intensive due to ImageMagick/FFmpeg.
+
+Current gallery-generation optimizations include:
+
+- Shallow fragments and browser-side child loading.
+- Metadata parsed once per image during a generation pass and reused for date
+  sorting and EXIF rendering.
+- Per-fragment manifest-based reuse checks instead of a per-image fingerprint
+  scan.
+- Atomic progressive index and fragment publication.
+
+Do not change metadata or thumbnail formats when optimizing gallery generation.
+Top-level parallel generation is not currently used because global gallery IDs
+and ordered index construction would need an additional design.
+
+## Validation
+
+Useful checks:
+
+```bash
+bash -n ./*.sh lib/*.sh lib/gallery/*.sh
+git diff --check
+```
+
+The inline JavaScript can be extracted from `templates/index.html.template`
+and checked with `node --check`. Focused tests should generate temporary
+three-level album trees and verify that fragments contain only immediate child
+summaries, have balanced `<details>` tags, and that adding a media file changes
+the manifest and regenerates the fragment.
+

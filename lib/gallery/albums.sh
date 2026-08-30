@@ -11,10 +11,15 @@ gallery_album_preview_url() {
 gallery_render_album() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 thumbnail_size=$6 thumbnail_display_mode=$7
   local album_name source child child_name preview_source preview_url gallery_id item_index child_count thumbnail_width thumbnail_height
-  local child_preview_url child_url child_child_count child_child child_child_name
+  local child_preview_url child_url child_child_count child_child child_child_name manifest_checksum
   local -a sources=() preview_sources=()
 
   printf '<!-- photina-fragment-version: %s -->\n' "$gallery_fragment_version"
+  if manifest_checksum=$(gallery_album_manifest_checksum "$album_rel" "$metadata_dir"); then
+    printf '<!-- photina-media-manifest: %s -->\n' "$manifest_checksum"
+  else
+    printf '<!-- photina-media-manifest: missing -->\n'
+  fi
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
   thumbnail_width=$thumbnail_size
@@ -120,7 +125,7 @@ gallery_write_nested_fragments() {
     gallery_image_count=0
     if [[ -f "$fragment_path" ]] &&
       grep -qF -- "<!-- photina-fragment-version: $gallery_fragment_version -->" "$fragment_path" &&
-      ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir"; then
+      ! gallery_album_needs_regeneration "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$fragment_path"; then
       echo ' skipped'
       gallery_write_nested_fragments "$child" "$child_rel" "$thumbs_dir" "$metadata_dir" "$output_dir" "$fragment_dir"
       continue
