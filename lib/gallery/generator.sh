@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-gallery_fragment_version=7
+gallery_fragment_version=8
 
 gallery_album_is_visible() {
   local album_rel=$1 allowed
@@ -83,6 +83,16 @@ gallery_album_manifest_checksum() {
   cksum -- "$manifest" | awk '{print $1 ":" $2}'
 }
 
+gallery_album_children_checksum() {
+  local album_path=$1 album_rel=$2 child child_name
+
+  while IFS= read -r -d '' child; do
+    child_name=${child%/}; child_name=${child_name##*/}
+    gallery_album_is_visible "$album_rel/$child_name" || continue
+    printf '%s\0' "$child_name"
+  done < <(gallery_find_child_albums "$album_path") | cksum | awk '{print $1 ":" $2}'
+}
+
 gallery_album_needs_regeneration() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 fragment_path=${5:-}
 
@@ -91,6 +101,9 @@ gallery_album_needs_regeneration() {
     local manifest_checksum
     manifest_checksum=$(gallery_album_manifest_checksum "$album_name" "$metadata_dir") || return 0
     grep -qF -- "<!-- photina-media-manifest: $manifest_checksum -->" "$fragment_path" || return 0
+    local children_checksum
+    children_checksum=$(gallery_album_children_checksum "$album_path" "$album_name") || return 0
+    grep -qF -- "<!-- photina-children-manifest: $children_checksum -->" "$fragment_path" || return 0
   fi
 
   return 1
