@@ -42,6 +42,22 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
 - `./delete-all-thumbnails-and-metadata.sh` deletes thumbnail and metadata
   caches; `./delete-album-thumbnails-and-metadata.sh ALBUM` deletes one album's
   caches.
+- `./fix-flickr-names.sh FLICKR_DIR MEDIA_DIR` renames readable Flickr files to
+  the names of unreadable target files. An embedded EXIF original/preserved
+  filename metadata takes priority; otherwise it first uses a unique filesize
+  match. The filename metadata lookup uses `OriginalFileName` and
+  `PreservedFileName`, never the source filesystem `FileName`.
+  If that is unavailable, or does not identify a target, it uses filesize and
+  then compares the source EXIF `DateTimeOriginal`, `CreateDate`, and
+  `ModifyDate` values with target filesystem modification and creation times.
+  If those EXIF dates are absent, `GPSDateStamp` is used as a date-only
+  fallback against the target file calendar dates.
+  It skips ambiguous matches and reports them as unmatched or collisions.
+  Successful rename output identifies whether the match used EXIF filename,
+  size, or created/modified date. Files that cannot be renamed are collected
+  and printed together at the end, with the closest target by byte-size
+  difference and timestamp difference. A target is consumed after a successful
+  rename and is excluded from all later matching and closest-match listings.
 
 The normal update sequence is:
 
@@ -169,6 +185,15 @@ Useful checks:
 bash -n ./*.sh lib/*.sh lib/gallery/*.sh
 git diff --check
 ```
+
+`fix-flickr-names.sh` requires GNU `find`, `exiftool`, and `jq`; its date
+fallback uses epoch-second comparisons and treats either target mtime or birth
+time as a match. Target files are indexed in one `find` traversal for names,
+byte sizes, modification times, and creation times. The Flickr traversal reads
+embedded EXIF filename/date fields and never uses Flickr source filesystem
+dates. No content or EXIF is read from target files; only the initial `find`
+metadata scan is performed for `MEDIA_DIR`.
+A unique size match remains sufficient and does not require matching dates.
 
 The inline JavaScript can be extracted from `templates/index.html.template`
 and checked with `node --check`. Focused tests should generate temporary
