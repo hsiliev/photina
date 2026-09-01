@@ -42,22 +42,37 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
 - `./delete-all-thumbnails-and-metadata.sh` deletes thumbnail and metadata
   caches; `./delete-album-thumbnails-and-metadata.sh ALBUM` deletes one album's
   caches.
-- `./fix-flickr-names.sh FLICKR_DIR MEDIA_DIR` renames readable Flickr files to
-  the names of unreadable target files. An embedded EXIF original/preserved
+- `./fix-flickr-names.sh FLICKR_DIR MEDIA_DIR_OR_XML` renames readable Flickr
+  files to the names of unreadable target files. The second argument may be a
+  media directory or a WhereIsIt XML export. XML mode reads target names,
+  sizes, and camera/digitized dates from the report and never opens the
+  referenced media files. An embedded EXIF original/preserved
   filename metadata takes priority; otherwise it first uses a unique filesize
   match. The filename metadata lookup uses `OriginalFileName` and
-  `PreservedFileName`, never the source filesystem `FileName`.
-  If that is unavailable, or does not identify a target, it uses filesize and
-  then compares the source EXIF `DateTimeOriginal`, `CreateDate`, and
-  `ModifyDate` values with target filesystem modification and creation times.
+  `PreservedFileName`, never the source filesystem `FileName`. Only regular
+  files directly inside `MEDIA_DIR` are target candidates; its subdirectories
+  are ignored.
+  If that is unavailable, it first checks an unambiguous timestamp encoded in
+  target names matching `YYYYMMDD_HHMMSS` (for example,
+  `IMG_20140418_113534.jpg`), then uses filesize. If the size is unavailable,
+  non-unique, or does not identify a target, it compares the source EXIF
+  `DateTimeOriginal`, `CreateDate`, and `ModifyDate` values with target
+  filesystem modification and creation times. Filename timestamps are also
+  considered during this date fallback. An exact filename timestamp is always
+  preferred over a filename timestamp that differs by one second.
   If those EXIF dates are absent, `GPSDateStamp` is used as a date-only
   fallback against the target file calendar dates.
   It skips ambiguous matches and reports them as unmatched or collisions.
   Successful rename output identifies whether the match used EXIF filename,
-  size, or created/modified date. Files that cannot be renamed are collected
+  filename date, size, or created/modified date. Files that cannot be renamed are collected
   and printed together at the end, with the closest target by byte-size
   difference and timestamp difference. A target is consumed after a successful
   rename and is excluded from all later matching and closest-match listings.
+  Date-time matches allow a difference of up to one epoch second; date-only
+  GPS fallback matches remain calendar-date exact.
+- `./compare-dirs.sh DIRECTORY1 DIRECTORY2` compares the filenames of regular
+  files directly inside two directories and reports files missing from either
+  side.
 
 The normal update sequence is:
 
@@ -186,14 +201,46 @@ bash -n ./*.sh lib/*.sh lib/gallery/*.sh
 git diff --check
 ```
 
-`fix-flickr-names.sh` requires GNU `find`, `exiftool`, and `jq`; its date
-fallback uses epoch-second comparisons and treats either target mtime or birth
-time as a match. Target files are indexed in one `find` traversal for names,
+`fix-flickr-names.sh` requires GNU `find`, `awk`, `exiftool`, `jq`, and
+`python3`; its date
+ fallback uses epoch-second comparisons with a one-second tolerance and treats
+ either target mtime or birth time as a match. Date-only GPS fallback remains
+ exact. Target files are indexed in one `find` traversal for names,
 byte sizes, modification times, and creation times. The Flickr traversal reads
-embedded EXIF filename/date fields and never uses Flickr source filesystem
-dates. No content or EXIF is read from target files; only the initial `find`
-metadata scan is performed for `MEDIA_DIR`.
+  embedded EXIF filename/date fields and never uses Flickr source filesystem
+  dates. The Flickr source scan is also limited to regular files directly
+  inside `FLICKR_DIR`; source subdirectories are ignored. No content or EXIF
+  is read from target files; only the initial `find` metadata scan is performed
+  for `MEDIA_DIR`.
+Matching uses in-memory Bash associative indexes for target sizes, timestamp
+buckets, and exact calendar dates, so normal size/date matching does not scan
+the complete target list for every Flickr file. Date indexes are built lazily
+only when date fallback is first needed, and duplicate-size lists are built
+only for sizes that actually repeat. The diagnostic fallback still scans
+unused targets only when a file cannot be renamed. The one-second timestamp
+buckets preserve the date matching tolerance without changing rename
+behavior; filename timestamps use the same one-second tolerance and GPS-only
+dates use exact calendar-date matching. Flickr metadata is read in one
+ExifTool JSON batch, parsed by `jq`, and retained as an in-memory Bash record
+array before matching starts. The script logs indexing, batch completion,
+every 100 processed source files, and final counts. These progress messages
+are indented by three spaces beneath the main phase headings.
+During matching, files needing failure diagnostics print a queueing message.
+After matching, one `awk` pass calculates closest size/time matches for all
+queued failures, avoiding a separate full Bash target scan and repeated date
+subprocesses for every failed file. The batch diagnostic phase prints its own
+start and completion messages.
+Closest-match diagnostics receive and honor each target's consumed flag, so
+they never report a target that was already used by an earlier successful
+rename.
+A filename-date match is also attempted across all targets when a shared file
+size has no matching date, allowing the filename timestamp to resolve a target
+whose size differs from the Flickr copy.
 A unique size match remains sufficient and does not require matching dates.
+
+Target-record source selection is implemented in `lib/fix/target-input.sh`;
+WhereIsIt XML parsing is implemented in `lib/fix/parse-whereisit-xml.py`; and
+the closest-match AWK program is maintained in `lib/fix/closest-matches.awk`.
 
 The inline JavaScript can be extracted from `templates/index.html.template`
 and checked with `node --check`. Focused tests should generate temporary
