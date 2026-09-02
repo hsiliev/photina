@@ -10,7 +10,7 @@ gallery_html_escape() {
 gallery_url_escape_path() {
   local value=$1
   value=${value//%/%25}; value=${value//\ /%20}; value=${value//\#/%23}
-  value=${value//\?/%3F}; value=${value//\"/%22}; value=${value//\'/%27}
+  value=${value//\?/%3F}; value=${value//\&/%26}; value=${value//\"/%22}; value=${value//\'/%27}
   printf '%s' "$value"
 }
 

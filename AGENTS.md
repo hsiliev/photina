@@ -99,6 +99,20 @@ removed, or changed media.
 - `lib/gallery/core.sh` provides media discovery, URL escaping, metadata date
   lookup, and common helpers.
 
+Index generation inserts the accumulated album JSON by concatenating the
+template prefix and suffix around `__ALBUM_LIST__`. Do not use Bash pattern
+replacement for this insertion: `&` in an album name has special replacement
+semantics and can reinsert the marker into the generated index.
+
+All album, media, and thumbnail URL path components must pass through
+`gallery_url_escape_path`; this includes encoding ampersands as `%26` so nested
+album preview URLs remain valid in HTML attributes, JavaScript, and Caddy
+requests.
+
+Caddy template markers are inserted by literal prefix/suffix concatenation.
+This is required for guest album paths and other configured values containing
+`&`, which must not cause a neighboring marker to be reinserted.
+
 Each gallery generation removes stale `.html` fragments whose corresponding
 album directory no longer exists, then removes empty fragment directories.
 The index and current fragments are generated afterward.
@@ -205,7 +219,18 @@ Useful checks:
 ```bash
 bash -n ./*.sh lib/*.sh lib/gallery/*.sh
 git diff --check
+bats tests
 ```
+
+The index writer should be tested with an album title containing `&`; the
+generated index must contain the literal ampersand and no `__ALBUM_LIST__`
+marker. A parent whose preview comes from an `&` sub-album should produce a
+thumbnail URL containing `%26`.
+
+The BATS suite is self-contained: each test uses a temporary directory and
+does not modify configured gallery data. It covers gallery URL/index helpers,
+missing-thumbnail checks, direct-directory comparison, selected cache
+deletion, and admin-gallery deletion.
 
 `fix-flickr-names.sh` requires GNU `find`, `awk`, `exiftool`, `jq`, and
 `python3`; its date

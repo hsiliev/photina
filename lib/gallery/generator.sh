@@ -65,11 +65,15 @@ gallery_append_album_list_item() {
 
 gallery_write_index() {
   local output_dir=$1 index_template=$2
-  local index_path index_tmp rendered_index
+  local index_path index_tmp rendered_index index_prefix index_suffix
 
   index_path="$output_dir/index.html"
   index_tmp=$(mktemp "$output_dir/.index-XXXXXX")
-  rendered_index=${index_template//__ALBUM_LIST__/$album_list}
+  # Do not use Bash's ${value//pattern/replacement} here: ampersands in the
+  # replacement are interpreted specially and can reinsert the marker.
+  index_prefix=${index_template%%__ALBUM_LIST__*}
+  index_suffix=${index_template#*__ALBUM_LIST__}
+  rendered_index=$index_prefix$album_list$index_suffix
   printf '%s' "$rendered_index" >"$index_tmp"
   mv -f -- "$index_tmp" "$index_path"
 }

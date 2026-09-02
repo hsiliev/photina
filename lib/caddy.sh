@@ -32,16 +32,23 @@ generate_caddyfile() {
   fi
 
   caddy_template=$(<"$script_dir/templates/Caddyfile.template")
-  caddy_template=${caddy_template//__ADMIN_PASSWORD_HASH__/$admin_password_hash}
-  caddy_template=${caddy_template//__GUEST_PASSWORD_HASH__/$guest_password_hash}
-  caddy_template=${caddy_template//__GUEST_ALLOWED_MEDIA__/$guest_media_block}
-  caddy_template=${caddy_template//__GUEST_ALLOWED_THUMBNAILS__/$guest_thumbnails_block}
-  caddy_template=${caddy_template//__ALBUMS_DIR__/$albums_dir}
-  caddy_template=${caddy_template//__ADMIN_OUTPUT_DIR__/$admin_output_dir}
-  caddy_template=${caddy_template//__GUEST_OUTPUT_DIR__/$guest_output_dir}
-  caddy_template=${caddy_template//__THUMBNAILS_PARENT__/$thumbs_parent}
-  caddy_template=${caddy_template//__CADDY_HOST__/$caddy_host}
-  caddy_template=${caddy_template//__CADDY_PORT__/$caddy_port}
+  caddy_template_replace() {
+    local marker=$1 replacement=$2 prefix suffix
+    prefix=${caddy_template%%"$marker"*}
+    suffix=${caddy_template#*"$marker"}
+    caddy_template=$prefix$replacement$suffix
+  }
+
+  caddy_template_replace __ADMIN_PASSWORD_HASH__ "$admin_password_hash"
+  caddy_template_replace __GUEST_PASSWORD_HASH__ "$guest_password_hash"
+  caddy_template_replace __GUEST_ALLOWED_MEDIA__ "$guest_media_block"
+  caddy_template_replace __GUEST_ALLOWED_THUMBNAILS__ "$guest_thumbnails_block"
+  caddy_template_replace __ALBUMS_DIR__ "$albums_dir"
+  caddy_template_replace __ADMIN_OUTPUT_DIR__ "$admin_output_dir"
+  caddy_template_replace __GUEST_OUTPUT_DIR__ "$guest_output_dir"
+  caddy_template_replace __THUMBNAILS_PARENT__ "$thumbs_parent"
+  caddy_template_replace __CADDY_HOST__ "$caddy_host"
+  caddy_template_replace __CADDY_PORT__ "$caddy_port"
   managed_start='# BEGIN PHOTINA MANAGED'
   managed_end='# END PHOTINA MANAGED'
   managed_block=$(printf '%s\n%s\n%s' "$managed_start" "$caddy_template" "$managed_end")
