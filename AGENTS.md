@@ -181,9 +181,11 @@ Current gallery-generation optimizations include:
   markers still match.
 
 Do not change metadata or thumbnail formats when optimizing gallery generation.
-Sibling albums are ordered by their complete names in descending byte order,
-so a dated name such as `2007_03_17 - Album` sorts before `2004`. Top-level
-album ordering remains deterministic. Parent entries are published
+Sibling albums are ordered alphabetically by their complete names. Names that
+begin with a year/date pattern such as `2007_03_17 - Album`, `2026-08-01 -
+Trip`, or `2024` are grouped as date-based albums and sorted newest first;
+ordinary names are sorted ascending. Top-level album ordering remains
+deterministic. Parent entries are published
 before their descendant fragments; an album with both direct images and child
 albums publishes after its own fragment is ready, then generates child
 fragments.
@@ -248,4 +250,6 @@ The inline JavaScript can be extracted from `templates/index.html.template`
 and checked with `node --check`. Focused tests should generate temporary
 three-level album trees and verify that fragments contain only immediate child
 summaries, have balanced `<details>` tags, and that adding a media file changes
-the manifest and regenerates the fragment.
+the manifest and regenerates the fragment. Album-order tests should include
+ordinary names and `YYYY`, `YYYY-MM-DD`, and `YYYY_MM_DD` names, verifying that
+date-based names are newest-first and ordinary names are ascending.

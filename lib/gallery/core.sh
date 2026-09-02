@@ -146,17 +146,25 @@ gallery_find_album_cover() {
 
 gallery_find_child_albums() {
   local child child_name
-  local -a child_albums=()
+  local -a date_albums=() ordinary_albums=()
 
   while IFS= read -r -d '' child; do
     child_name=${child##*/}
-    child_albums+=("$child_name	$child")
+    # Date-based album names are chronological collections and should show
+    # newest first. Ordinary album names use normal alphabetical order.
+    if [[ "$child_name" =~ ^[0-9]{4}([_-][0-9]{1,2}([_-][0-9]{1,2})?)?([[:space:]]|$) ]]; then
+      date_albums+=("$child_name"$'\t'"$child")
+    else
+      ordinary_albums+=("$child_name"$'\t'"$child")
+    fi
   done < <(find -P "$1" -mindepth 1 -maxdepth 1 -type d -print0)
 
-  if ((${#child_albums[@]})); then
-    printf '%s\0' "${child_albums[@]}" | LC_ALL=C sort -z -r |
-      while IFS= read -r -d '' child; do
-        printf '%s\0' "${child#*$'\t'}"
-      done
+  if ((${#date_albums[@]})); then
+    printf '%s\0' "${date_albums[@]}" | LC_ALL=C sort -z -r |
+      while IFS= read -r -d '' child; do printf '%s\0' "${child#*$'\t'}"; done
+  fi
+  if ((${#ordinary_albums[@]})); then
+    printf '%s\0' "${ordinary_albums[@]}" | LC_ALL=C sort -z |
+      while IFS= read -r -d '' child; do printf '%s\0' "${child#*$'\t'}"; done
   fi
 }
