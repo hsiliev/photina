@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-gallery_fragment_version=9
+gallery_fragment_version=10
 
 gallery_album_is_visible() {
   local album_rel=$1 allowed

@@ -145,15 +145,25 @@ gallery_find_album_cover() {
 }
 
 gallery_find_child_albums() {
-  local child child_name
+  local child child_name year month day date_key
   local -a date_albums=() ordinary_albums=()
 
   while IFS= read -r -d '' child; do
     child_name=${child##*/}
-    # Date-based album names are chronological collections and should show
-    # newest first. Ordinary album names use normal alphabetical order.
-    if [[ "$child_name" =~ ^[0-9]{4}([_-][0-9]{1,2}([_-][0-9]{1,2})?)?([[:space:]]|$) ]]; then
-      date_albums+=("$child_name"$'\t'"$child")
+    # Use the first complete date in a name. This covers date ranges and
+    # comma-separated day lists such as 2007_06_22,23,24.
+    if [[ "$child_name" =~ ^([0-9]{4})[-_]([0-9]{1,2})[-_]([0-9]{1,2})([^0-9]|$) ]]; then
+      year=${BASH_REMATCH[1]}
+      month=${BASH_REMATCH[2]#0}; [[ -n "$month" ]] || month=0
+      day=${BASH_REMATCH[3]#0}; [[ -n "$day" ]] || day=0
+      if ((month >= 1 && month <= 12 && day >= 1 && day <= 31)); then
+        printf -v date_key '%04d%02d%02d' "$year" "$month" "$day"
+        date_albums+=("$date_key"$'\t'"$child_name"$'\t'"$child")
+      else
+        ordinary_albums+=("$child_name"$'\t'"$child")
+      fi
+    elif [[ "$child_name" =~ ^([0-9]{4})([^0-9]|$) ]]; then
+      date_albums+=("${BASH_REMATCH[1]}000000"$'\t'"$child_name"$'\t'"$child")
     else
       ordinary_albums+=("$child_name"$'\t'"$child")
     fi
@@ -161,7 +171,10 @@ gallery_find_child_albums() {
 
   if ((${#date_albums[@]})); then
     printf '%s\0' "${date_albums[@]}" | LC_ALL=C sort -z -r |
-      while IFS= read -r -d '' child; do printf '%s\0' "${child#*$'\t'}"; done
+      while IFS= read -r -d '' child; do
+        child=${child#*$'\t'}
+        printf '%s\0' "${child#*$'\t'}"
+      done
   fi
   if ((${#ordinary_albums[@]})); then
     printf '%s\0' "${ordinary_albums[@]}" | LC_ALL=C sort -z |

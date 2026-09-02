@@ -137,7 +137,7 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 8 -->
+<!-- photina-fragment-version: 10 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 ```
 
@@ -182,8 +182,10 @@ Current gallery-generation optimizations include:
 
 Do not change metadata or thumbnail formats when optimizing gallery generation.
 Sibling albums are ordered alphabetically by their complete names. Names that
-begin with a year/date pattern such as `2007_03_17 - Album`, `2026-08-01 -
-Trip`, or `2024` are grouped as date-based albums and sorted newest first;
+begin with a year/date pattern such as `2007_03_17 - Album`,
+`2007_06_22,23,24 - Team building`, `2026-08-01 - Trip`, or `2024` are
+grouped as date-based albums and sorted newest first. The first complete date
+is used for ranges and comma-separated day lists;
 ordinary names are sorted ascending. Top-level album ordering remains
 deterministic. Parent entries are published
 before their descendant fragments; an album with both direct images and child
