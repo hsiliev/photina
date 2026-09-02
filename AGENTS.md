@@ -137,7 +137,7 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 7 -->
+<!-- photina-fragment-version: 8 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 ```
 
@@ -181,7 +181,9 @@ Current gallery-generation optimizations include:
   markers still match.
 
 Do not change metadata or thumbnail formats when optimizing gallery generation.
-Top-level album ordering remains deterministic. Parent entries are published
+Sibling albums are ordered by their complete names in descending byte order,
+so a dated name such as `2007_03_17 - Album` sorts before `2004`. Top-level
+album ordering remains deterministic. Parent entries are published
 before their descendant fragments; an album with both direct images and child
 albums publishes after its own fragment is ready, then generates child
 fragments.
