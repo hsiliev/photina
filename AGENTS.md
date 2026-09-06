@@ -243,8 +243,12 @@ thumbnail URL containing `%26`.
 
 The BATS suite is self-contained: each test uses a temporary directory and
 does not modify configured gallery data. It covers gallery URL/index helpers,
-missing-thumbnail checks, direct-directory comparison, selected cache
-deletion, and admin-gallery deletion.
+shallow multi-level fragments, manifest checksum invalidation, template
+JavaScript validation, missing-thumbnail checks, direct-directory comparison,
+selected and all cache deletion, admin and guest gallery deletion, duplicate
+detection and elimination, EXIF year splitting, and comprehensive Flickr
+filename matching (EXIF names, sizes, timestamps, date fallbacks, GPS dates,
+closest-match diagnostics, and WhereIsIt XML import).
 
 `fix-flickr-names.sh` requires GNU `find`, `awk`, `exiftool`, `jq`, and
 `python3`; its date
@@ -309,5 +313,5 @@ showed 2 columns at 320px, 3 at 390px, 4 at 768px, and 4 at 1280px, with no
 horizontal overflow. Resizing back to 320px restored 2 columns. Reopening
 and scrolling loaded all 12 photos, and a long unbroken title stayed within
 the viewport. Grid and justified layouts also fit at 320px; a custom 90px
-size remained 90px and produced 3 cascading columns. The 14 BATS tests, Bash syntax checks, generated JavaScript
+size remained 90px and produced 3 cascading columns. The 30 BATS tests, Bash syntax checks, generated JavaScript
 syntax checks, and `git diff --check` passed.
