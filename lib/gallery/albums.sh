@@ -22,8 +22,10 @@ gallery_render_album() {
   fi
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
-  thumbnail_width=$thumbnail_size
-  thumbnail_height=$thumbnail_size
+  # NanoGallery's XS (<480px) and SM (<992px) sizes follow the viewport.
+  # Cap mobile sizes without enlarging thumbnails configured smaller than these.
+  thumbnail_width="$thumbnail_size XS$((thumbnail_size < 120 ? thumbnail_size : 120)) SM$((thumbnail_size < 180 ? thumbnail_size : 180))"
+  thumbnail_height=$thumbnail_width
   case "$thumbnail_display_mode" in
     cascading) thumbnail_height=auto ;;
     justified) thumbnail_width=auto ;;

@@ -134,6 +134,20 @@ The browser logic is embedded in `templates/index.html.template`. Album cover
 images use `data-src` and are activated only for visible/immediate albums.
 NanoGallery scripts are initialized only when their containing album opens.
 
+Gallery thumbnail dimensions use NanoGallery 3.0.5's native responsive syntax:
+`SIZE XS120 SM180`, capped by `THUMBNAIL_SIZE` if it is smaller. XS applies
+below 480px viewport width; SM applies from 480px to below 992px. Desktop
+uses the configured size. Cascading keeps height `auto`; justified keeps
+width `auto`. NanoGallery handles relayout on viewport resizing. Generated
+thumbnail and metadata formats are unchanged. Below 992px, nested albums
+have no cumulative indentation; phones also use smaller page padding and
+summary text. Long album titles wrap without pushing the gallery offscreen.
+Regenerate both galleries to apply these settings; fragment version 11
+invalidates the previous fixed-size fragments.
+
+Responsive options are documented at
+https://nanogallery2.nanostudio.org/documentation.html#ngy2_gallery_thumbnails_resp.
+
 ## Progressive publication
 
 `generate_gallery()` writes a valid empty index skeleton before scanning all
@@ -151,7 +165,7 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 10 -->
+<!-- photina-fragment-version: 11 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 ```
 
@@ -280,3 +294,20 @@ summaries, have balanced `<details>` tags, and that adding a media file changes
 the manifest and regenerates the fragment. Album-order tests should include
 ordinary names and `YYYY`, `YYYY-MM-DD`, and `YYYY_MM_DD` names, verifying that
 date-based names are newest-first and ordinary names are ascending.
+
+Responsive layout validation should open a three-level album with portrait
+and landscape photos at 320px, 390px, 768px, and 1280px viewport widths.
+Check multiple thumbnail columns for cascading/grid layouts, all media being
+reachable, no horizontal page overflow, resize/orientation relayout, and
+closing/reopening albums. Check justified layout and smaller custom thumbnail
+sizes as well. Run `bats tests` and extract generated inline scripts for
+`node --check` after changing gallery options.
+
+The responsive change was checked in Chromium using a temporary generated
+three-level album with 12 alternating landscape/portrait photos. Cascading
+showed 2 columns at 320px, 3 at 390px, 4 at 768px, and 4 at 1280px, with no
+horizontal overflow. Resizing back to 320px restored 2 columns. Reopening
+and scrolling loaded all 12 photos, and a long unbroken title stayed within
+the viewport. Grid and justified layouts also fit at 320px; a custom 90px
+size remained 90px and produced 3 cascading columns. The 14 BATS tests, Bash syntax checks, generated JavaScript
+syntax checks, and `git diff --check` passed.
