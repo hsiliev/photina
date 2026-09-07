@@ -110,7 +110,7 @@ gallery_find_media() {
 }
 
 gallery_find_first_media() {
-  gallery_find_media "$1" all | head -z -n 1
+  gallery_find_media "$1" direct | head -z -n 1
 }
 
 gallery_media_date() {

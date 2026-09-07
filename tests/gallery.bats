@@ -172,3 +172,29 @@ with open(sys.argv[2], "w") as out:
   [ -n "${expected["$thumbnails/Album/movie.mov_medium.webp"]+present}" ]
   [ -n "${expected["$thumbnails/Album/movie.mov.web.mp4"]+present}" ]
 }
+
+@test "guest gallery assigns allowed child preview to parent album when parent content is not allowed" {
+  albums="$test_root/albums"
+  output_dir="$test_root/output"
+  thumbs="$test_root/thumbnails"
+  metadata="$test_root/metadata"
+  mkdir -p -- "$albums/Садовец/scans" "$albums/Садовец/Scans" "$albums/Садовец/print" \
+    "$albums/Садовец/restaurant" "$albums/Троян" "$thumbs" "$metadata"
+
+  # Place direct album.jpg and media in parent Садовец (not accessible by guest)
+  printf image >"$albums/Садовец/album.jpg"
+  printf image >"$albums/Садовец/print/photo.jpg"
+  printf image >"$albums/Садовец/restaurant/food.jpg"
+  printf image >"$albums/Садовец/scans/doc.jpg"
+  printf image >"$albums/Троян/troyan.jpg"
+
+  run generate_gallery "$PROJECT_ROOT" "$albums" "$output_dir" "$thumbs" "$metadata" 250 cascading \
+    "Садовец/scans" "Садовец/Scans" "Садовец/print" "Садовец/restaurant" "Троян"
+
+  [ "$status" -eq 0 ]
+  [ -f "$output_dir/index.html" ]
+  # Parent Садовец should have a thumbnail from allowed child albums, not /thumbnails/Садовец/album.jpg
+  ! grep -qF -- '"thumbnail":"/thumbnails/Садовец/album.jpg' "$output_dir/index.html"
+  grep -qF -- '"title":"Садовец"' "$output_dir/index.html"
+  grep -qE -- '"title":"Садовец","thumbnail":"/thumbnails/Садовец/(print|restaurant|scans|Scans)/' "$output_dir/index.html"
+}

@@ -180,10 +180,13 @@ thumbnail, or generated NanoGallery item formats.
 
 ## Album previews
 
-An explicit `album.jpg` directly inside an album has priority. If it is absent,
-the first available media item is used as a fallback preview. `cover.jpg` is
-not special. Preview URLs point to generated thumbnail files and may initially
-have a zero timestamp if thumbnail generation has not completed yet.
+An explicit `album.jpg` directly inside an album has priority when the album's
+content is allowed. If it is absent or the album's content is not permitted (such
+as in guest mode when only sub-albums are granted), preview resolution recurses
+through visible child albums in sorted order to pick the first accessible child
+preview. `cover.jpg` is not special. Preview URLs point to generated thumbnail
+files and may initially have a zero timestamp if thumbnail generation has not
+completed yet.
 
 ## Performance considerations
 
@@ -245,10 +248,11 @@ The BATS suite is self-contained: each test uses a temporary directory and
 does not modify configured gallery data. It covers gallery URL/index helpers,
 shallow multi-level fragments, manifest checksum invalidation, template
 JavaScript validation, missing-thumbnail checks, direct-directory comparison,
-selected and all cache deletion, admin and guest gallery deletion, duplicate
-detection and elimination, EXIF year splitting, and comprehensive Flickr
-filename matching (EXIF names, sizes, timestamps, date fallbacks, GPS dates,
-closest-match diagnostics, and WhereIsIt XML import).
+selected and all cache deletion, admin and guest gallery deletion, guest parent
+preview resolution with restricted permissions, duplicate detection and
+elimination, EXIF year splitting, and comprehensive Flickr filename matching
+(EXIF names, sizes, timestamps, date fallbacks, GPS dates, closest-match
+diagnostics, and WhereIsIt XML import).
 
 `fix-flickr-names.sh` requires GNU `find`, `awk`, `exiftool`, `jq`, and
 `python3`; its date
