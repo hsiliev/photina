@@ -258,17 +258,17 @@ EOF
   grep -qF -- '"/thumbnails/Album & Friends/*"' "$caddyfile"
 }
 
-@test "trim-trailing-spaces renames nested files and directories and skips conflicts" {
+@test "fix-names renames nested files and directories and skips conflicts" {
   root="$test_root/trim"
   mkdir -p -- "$root/Album  /Sub " "$root/Keep"
   touch -- "$root/Album  /Sub /photo.jpg " "$root/Album  /clean.jpg" "$root/dup" "$root/dup " "$root/   "
 
-  run "$PROJECT_ROOT/trim-trailing-spaces.sh" --dry-run "$root"
+  run "$PROJECT_ROOT/fix-names.sh" --dry-run "$root"
   [ "$status" -eq 1 ]
   [[ "$output" == *'Would rename'* ]]
   [ -d "$root/Album  " ]
 
-  run "$PROJECT_ROOT/trim-trailing-spaces.sh" "$root"
+  run "$PROJECT_ROOT/fix-names.sh" "$root"
 
   [ "$status" -eq 1 ]
   [ -f "$root/Album/Sub/photo.jpg" ]
@@ -278,14 +278,59 @@ EOF
   [ -f "$root/dup " ]
   [ -f "$root/   " ]
   [[ "$output" == *'target already exists'* ]]
-  [[ "$output" == *'only of spaces'* ]]
+  [[ "$output" == *'consists only of spaces or dots'* ]]
 }
 
-@test "trim-trailing-spaces succeeds when nothing needs renaming" {
+@test "fix-names succeeds when nothing needs renaming" {
   mkdir -p -- "$test_root/clean/a"
 
-  run "$PROJECT_ROOT/trim-trailing-spaces.sh" "$test_root/clean"
+  run "$PROJECT_ROOT/fix-names.sh" "$test_root/clean"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Renamed 0 item(s); skipped 0.'* ]]
+  [[ "$output" == *'Renamed 0 item(s); skipped 0; forbidden 0.'* ]]
+}
+
+@test "fix-names also trims trailing dots" {
+  root="$test_root/dots"
+  mkdir -p -- "$root/Trip.. "
+  touch -- "$root/Trip.. /photo.jpg."
+
+  run "$PROJECT_ROOT/fix-names.sh" "$root"
+
+  [ "$status" -eq 0 ]
+  [ -f "$root/Trip/photo.jpg" ]
+}
+
+@test "fix-names reports names with characters SMB cannot store" {
+  root="$test_root/forbidden"
+  mkdir -p -- "$root/Album"
+  touch -- "$root/Album/a:b.jpg" "$root/Album/what?.jpg" "$root/Album/pipe|name.jpg" \
+    "$root/Album/ctl"$'\x01'".jpg" "$root/Album/mapped"$'\xef\x80\xa2'".jpg" \
+    "$root/Album/fine.jpg" "$root/Album/q:trail "
+
+  run "$PROJECT_ROOT/fix-names.sh" "$root"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"forbidden: $root/Album/a:b.jpg"* ]]
+  [[ "$output" == *"forbidden: $root/Album/what?.jpg"* ]]
+  [[ "$output" == *"forbidden: $root/Album/pipe|name.jpg"* ]]
+  [[ "$output" == *'forbidden: '*'ctl'* ]]
+  [[ "$output" == *'forbidden: '*'mapped'* ]]
+  [[ "$output" == *"forbidden: $root/Album/q:trail"* ]]
+  [[ "$output" != *'forbidden: '*'fine.jpg'* ]]
+  [ -f "$root/Album/a:b.jpg" ]
+  [ -f "$root/Album/q:trail" ]
+}
+
+@test "thumbnail_make skips an empty video without errors or stray files" {
+  source "$PROJECT_ROOT/lib/thumbnails.sh"
+  mkdir -p -- "$test_root/thumbs"
+  : >"$test_root/empty.avi"
+
+  run thumbnail_make "$test_root/empty.avi" "$test_root/thumbs/empty.avi.webp" 120 convert empty.avi 400 cascading
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'skipping unreadable video: empty.avi'* ]]
+  [[ "$output" != *'insufficient image data'* && "$output" != *'cannot stat'* ]]
+  [ -z "$(ls -A -- "$test_root/thumbs")" ]
 }

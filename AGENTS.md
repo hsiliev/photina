@@ -58,8 +58,16 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   stale thumbnail/metadata files and empty thumbnail/metadata directories for
   deleted albums.
   Before processing it warns (does not fail) when the `nls_utf8` kernel module
-  is neither loaded, built in, nor loadable via `modprobe -n`, since non-ASCII
-  album names can break on vfat/exfat/ntfs mounts without it.
+  is neither loaded, built in, nor loadable via `modprobe -n`. CIFS mounts
+  with `iocharset=utf8` (as on the production Storage Box mount) fail to
+  mount without it, and vfat/exfat/ntfs need it for non-ASCII names.
+  `thumbnail_make` never feeds unreadable media to ImageMagick or `mv`: a
+  video frame comes from `ffmpegthumbnailer`, falling back to `ffmpeg`; if
+  no non-empty frame or no non-empty thumbnail/medium results, it prints a
+  `skipping unreadable ...` warning, removes temp files and returns 0 so the
+  batch continues (the file stays pending and is retried next run). A failed
+  web-video conversion only warns; thumbnails are still published. `warn` is
+  exported to the `xargs` workers for this.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
   thumbnail, medium, and web-video outputs. It exits with status 1 if any are
   missing; it does not modify the thumbnail tree.
@@ -133,14 +141,23 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   It requires only `exiftool` and `find`, not the Photina config. It uses
   `mv -f`, so an existing file of the same name in the year directory is
   overwritten.
-- `./trim-trailing-spaces.sh [-n|--dry-run] DIRECTORY` renames files and
-  directories below DIRECTORY whose names end with spaces, deepest entries
-  first (`find -depth`) so parent renames never invalidate pending paths.
-  DIRECTORY itself is not renamed. Names that would become empty or collide
-  with an existing entry are skipped with a warning and make the exit status
-  1; it never overwrites. `--dry-run` only reports. It does not read the
-  Photina config. Rerun `update-thumbnails.sh` afterwards, since renamed
-  media get new thumbnails and the old ones become stale.
+- `./fix-names.sh [-n|--dry-run] DIRECTORY` makes names SMB-safe. It renames
+  files and directories below DIRECTORY whose names end with spaces or dots,
+  deepest entries first (`find -depth`) so parent renames never invalidate
+  pending paths. DIRECTORY itself is not renamed. Names that would become
+  empty or collide with an existing entry are skipped with a warning. It also
+  reports (never renames) names containing characters SMB cannot store:
+  `\ : * ? " < > |`, control characters, and the private-use characters
+  U+F020-U+F029 (UTF-8 `EF 80 A0-A9`) that Linux CIFS with `mapposix` shows in
+  their place. `find` prefilters candidates with `-name` patterns in a single
+  traversal; bash classifies them with `has_forbidden_character`, so keep the
+  two lists in sync. Names are checked after trimming. Exit status is 1 when
+  anything was skipped or forbidden. It never overwrites and does not read the
+  Photina config. Names the SMB server could not represent are exposed by the
+  mount as unopenable aliases such as `2KT24Y~W`; their real names are not
+  visible through the mount, so this check cannot find them (rename them on
+  the server over SFTP/SSH). Rerun `update-thumbnails.sh` afterwards, since
+  renamed media get new thumbnails and the old ones become stale.
 - `./compare-dirs.sh DIRECTORY1 DIRECTORY2` compares the filenames of regular
   files directly inside two directories and reports files missing from either
   side.

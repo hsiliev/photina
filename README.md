@@ -170,17 +170,23 @@ processes images directly inside the supplied directory, leaves images without
 a usable year in place, and overwrites same-named files already in a year
 directory.
 
-## Removing trailing spaces from names
+## Fixing names for SMB shares
 
-To strip trailing spaces from file and directory names below a directory, run:
+To strip trailing spaces and dots from file and directory names below a
+directory and list names SMB cannot store, run:
 
 ```bash
-./trim-trailing-spaces.sh --dry-run /mnt/gallery/albums   # preview
-./trim-trailing-spaces.sh /mnt/gallery/albums
+./fix-names.sh --dry-run /mnt/gallery/albums   # preview
+./fix-names.sh /mnt/gallery/albums
 ```
 
 Nothing is overwritten: names that would collide with an existing entry, or
-that consist only of spaces, are reported and skipped (exit status 1). Run
+that consist only of spaces and dots, are reported and skipped. Names with
+characters SMB cannot hold (`\ : * ? " < > |` and control characters) are
+listed as `forbidden` but not renamed. The exit status is 1 if anything was
+skipped or forbidden. A name the server could not represent appears on an SMB
+mount as an unopenable alias such as `2KT24Y~W`; its real name is invisible
+there, so rename it on the server (for example over SFTP). Run
 `./update-thumbnails.sh` afterwards so renamed media get new thumbnails.
 
 ## Gallery behaviour

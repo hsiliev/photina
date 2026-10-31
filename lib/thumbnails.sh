@@ -59,7 +59,17 @@ thumbnail_make() {
 
   mkdir -p -- "$(dirname -- "$thumbnail")"
   if photina_is_video "$source"; then
-    ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
+    # Unreadable videos (empty, truncated) must not reach ImageMagick or mv.
+    if ! ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1 \
+      || [[ ! -s "$video_frame_tmp" ]]; then
+      rm -f -- "$video_frame_tmp"
+      ffmpeg -v error -i "$source" -frames:v 1 -y "$video_frame_tmp" >/dev/null 2>&1 || true
+    fi
+    if [[ ! -s "$video_frame_tmp" ]]; then
+      rm -f -- "$video_frame_tmp"
+      warn "skipping unreadable video: $display_name"
+      return 0
+    fi
     input=$video_frame_tmp
     medium_quality=86
   else
@@ -71,7 +81,7 @@ thumbnail_make() {
     "$image_tool" "$input" "${input_args[@]}" \
       \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
       \( +clone -thumbnail "${medium_size}x" -strip -quality "$medium_quality" -write "$medium_tmp" +delete \) \
-      null:
+      null: || true
   else
     "$image_tool" "$input" "${input_args[@]}" \
       \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
@@ -79,19 +89,26 @@ thumbnail_make() {
         -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
       \( +clone -thumbnail "${medium_size}x${medium_size}>" \
         -strip -quality "$medium_quality" -write "$medium_tmp" +delete \) \
-      null:
-  fi
-  if photina_is_video "$source" && photina_needs_web_video "$source"; then
-    ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
-      >/dev/null 2>&1
-  fi
-
-  mv -f -- "$thumbnail_tmp" "$thumbnail"
-  mv -f -- "$medium_tmp" "$medium"
-  if photina_needs_web_video "$source"; then
-    mv -f -- "$web_video_tmp" "$web_video"
+      null: || true
   fi
   rm -f -- "$video_frame_tmp"
+  if [[ ! -s "$thumbnail_tmp" || ! -s "$medium_tmp" ]]; then
+    rm -f -- "$thumbnail_tmp" "$medium_tmp"
+    warn "skipping unreadable media: $display_name"
+    return 0
+  fi
+
+  if photina_needs_web_video "$source"; then
+    if ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
+      >/dev/null 2>&1 && [[ -s "$web_video_tmp" ]]; then
+      mv -f -- "$web_video_tmp" "$web_video"
+    else
+      rm -f -- "$web_video_tmp"
+      warn "web video conversion failed: $display_name"
+    fi
+  fi
+  mv -f -- "$thumbnail_tmp" "$thumbnail"
+  mv -f -- "$medium_tmp" "$medium"
   printf '\t%s\n' "$display_name"
 }
 
@@ -129,7 +146,7 @@ thumbnail_filter_pending() {
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9 media_file=${10:-}
-  export -f photina_is_video photina_needs_web_video thumbnail_make thumbnail_process_item
+  export -f warn photina_is_video photina_needs_web_video thumbnail_make thumbnail_process_item
 
   if [[ -n "$media_file" ]]; then
     cat -- "$media_file"
