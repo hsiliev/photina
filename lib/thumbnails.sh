@@ -406,6 +406,7 @@ thumbnail_update_album() {
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0 cleanup_failed=0
+  local -a failed_albums=()
   local album_path album_name media_file
   # shellcheck disable=SC2034 # passed by name to functions that use namerefs
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
@@ -430,19 +431,24 @@ update_thumbnails() {
     media_file=$(mktemp)
     if ! thumbnail_list_media "$album_path" >"$media_file"; then
       thumbnail_failed=1
+      failed_albums+=("$album_name (could not list media)")
     elif [[ -s "$media_file" ]]; then
       thumbnail_add_expected_outputs "$album_path" "$album_name" "$thumbs_dir" "$media_file" expected_thumbnails
       thumbnail_add_expected_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" expected_metadata expected_checksums
       echo "Scanning album: $album_name"
       thumbnail_update_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" \
-        "$medium_size" "$image_tool" "$parallel_jobs" "$display_mode" "$media_file" || thumbnail_failed=1
+        "$medium_size" "$image_tool" "$parallel_jobs" "$display_mode" "$media_file" || {
+          thumbnail_failed=1
+          failed_albums+=("$album_name (thumbnail/metadata update failed)")
+        }
     fi
     rm -f -- "$media_file"
   done < <(thumbnail_list_albums "$albums_dir")
   # Never delete based on an incomplete scan: expected_* only list albums
   # whose media list was read successfully.
   if (( thumbnail_failed != 0 )); then
-    echo 'Skipping stale thumbnail and metadata cleanup because some albums failed'
+    echo 'Skipping stale thumbnail and metadata cleanup because some albums failed:'
+    printf '\t%s\n' "${failed_albums[@]}"
   else
     thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails || cleanup_failed=1
     thumbnail_cleanup_stale_metadata "$albums_dir" "$metadata_dir" expected_metadata expected_checksums || cleanup_failed=1

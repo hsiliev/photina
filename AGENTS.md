@@ -77,7 +77,8 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   themselves, though `pic.webp` -> `pic.webp.webp` also works). If the
   original exists, the file is kept and counted in a "Kept N ..." line.
   Metadata `.json` files get the same check. Cleanup is skipped entirely when
-  any album failed to scan, and refused when the albums directory is empty
+  any album failed to scan or update (the skip message lists each failed
+  album with the reason), and refused when the albums directory is empty
   (`thumbnail_albums_dir_is_populated`, e.g. an unmounted share). There is no
   override flag and no percentage limit. Do not remove these checks.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
