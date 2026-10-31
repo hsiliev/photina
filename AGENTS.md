@@ -138,6 +138,8 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   tries `modprobe nls_utf8`; if that fails (typically because a newer kernel
   was just installed) it stops with an error asking for a reboot and a rerun,
   before Caddy and the config are installed.
+  It finally appends `set -g mouse on` to `~/.tmux.conf` (created if missing)
+  unless a `set -g mouse on` line already exists, so reruns stay idempotent.
 - `./update-caddy.sh` regenerates Photina's managed Caddy block (from
   `templates/Caddyfile.template`, via `lib/caddy.sh`) and reloads Caddy
   without regenerating galleries. Gallery generation also does this.

@@ -56,4 +56,12 @@ else
   echo 'Keeping existing /etc/photina/photina.conf'
 fi
 
+tmux_conf=$HOME/.tmux.conf
+if ! grep -qsE '^[[:space:]]*set(-option)?[[:space:]]+-g[[:space:]]+mouse[[:space:]]+on' "$tmux_conf"; then
+  echo "Enabling tmux mouse support in $tmux_conf"
+  printf 'set -g mouse on\n' >>"$tmux_conf"
+else
+  echo "Keeping existing tmux mouse setting in $tmux_conf"
+fi
+
 echo 'Dependencies installed'
