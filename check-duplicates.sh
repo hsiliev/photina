@@ -2,16 +2,14 @@
 set -Eeuo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-config_file=${PHOTINA_CONFIG:-/etc/photina/photina.conf}
 
-die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+source "$script_dir/lib/common.sh"
+
 
 [[ $# -eq 0 ]] || die 'usage: check-duplicates.sh'
-[[ -f "$config_file" ]] || die "configuration file does not exist: $config_file"
 
-# shellcheck source=/etc/photina/photina.conf
-# shellcheck disable=SC1091
-source "$config_file"
+photina_load_config
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 command -v find >/dev/null || die 'find is required'
 command -v awk >/dev/null || die 'awk is required'

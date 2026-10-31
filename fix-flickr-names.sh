@@ -198,6 +198,7 @@ find_date_match() {
   return 1
 }
 
+# shellcheck disable=SC2034,SC2178 # candidate arrays are read through a nameref
 find_filename_date_match() {
   local -a exif_dates=("$@")
   local index filename_date filename_epoch exif_date candidate_key
@@ -337,7 +338,7 @@ echo "Indexing media directory (unreadable files names)..."
 # Only MEDIA_DIR filesystem dates participate in date matching.  The Flickr
 # pass below reads embedded EXIF dates, never FileModifyDate/FileCreateDate.
 target_input=(fix_emit_target_records "$MEDIA_DIR" "$SCRIPT_DIR")
-while IFS=$'\t' read -r filename filesize target_mtime target_birthtime target_mtime_date target_birth_date target_path; do
+while IFS=$'\t' read -r filename filesize target_mtime target_birthtime target_mtime_date target_birth_date _target_path; do
   [[ -z "$filename" ]] && continue
 
   target_names+=("$filename")
@@ -520,7 +521,7 @@ for flickr_record in "${flickr_records[@]}"; do
   fi
 
   mv "$src_filepath" "$new_filepath"
-  target_used[$match_index]=1
+  target_used[match_index]=1
   echo "Renamed: $(basename "$src_filepath") -> ${target_name} (matched by ${match_basis})"
 
 done

@@ -5,6 +5,8 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"
+# shellcheck source=lib/thumbnails.sh
+source "$script_dir/lib/thumbnails.sh"
 
 photina_load_config
 
@@ -17,9 +19,6 @@ command -v realpath >/dev/null || die 'realpath is required'
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
 thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
-
-# shellcheck source=lib/thumbnails.sh
-source "$script_dir/lib/thumbnails.sh"
 
 missing=0
 declare -A expected_thumbnails=()

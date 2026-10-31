@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Globals below are owned by generator.sh/media.sh/core.sh.
+# shellcheck disable=SC2154,SC2034
+
 gallery_album_preview_url() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 output_dir=$5
   local relative preview_url
@@ -32,10 +35,8 @@ gallery_render_album() {
   esac
   gallery_image_count=0
   if gallery_album_content_is_allowed "$album_rel"; then
-    while IFS= read -r -d '' source; do
-      relative=${source#"$album_dir"}; relative=${relative#/}
-      gallery_media_date "$metadata_dir/$album_rel/$relative.json" >/dev/null
-    done < <(gallery_find_media "$album_dir")
+    gallery_preload_metadata "$album_dir" "$album_rel" "$metadata_dir"
+    gallery_preload_file_versions "$thumbs_dir/$album_rel"
     while IFS= read -r -d '' source; do sources+=("$source"); done < <(gallery_find_media_by_date "$album_dir" "$album_rel" "$metadata_dir")
     while IFS= read -r -d '' source; do preview_sources+=("$source"); done < <(gallery_find_album_cover "$album_dir")
     if ((${#preview_sources[@]} == 0)); then
@@ -103,11 +104,12 @@ gallery_render_album() {
     item_index=0
     for source in "${sources[@]}"; do
       gallery_render_media_item "$source" "$album_dir" "$album_rel" "$thumbs_dir" \
-        "$metadata_dir" "$output_dir" "$item_index"
+        "$metadata_dir" "$item_index"
       item_index=$((item_index + 1))
     done
     gallery_print_template items-end.html
     gallery_metadata_cache_clear_album "$metadata_dir/$album_rel"
+    gallery_file_version_cache=()
   fi
 
   gallery_print_template album-end.html

@@ -30,6 +30,21 @@ if ! apt-cache policy caddy | grep -q '^  Candidate: [^ (]'; then
   sudo apt-get update
 fi
 
+# nls_utf8 (UTF-8 filenames on vfat/exfat/ntfs mounts) ships in the kernel's
+# extra-modules package. linux-image-generic depends on the extras package of
+# the current kernel version, so future kernel upgrades install it too, unlike
+# the minimal linux-image-virtual metapackage.
+kernel=$(uname -r)
+if [[ "$kernel" == *-generic ]]; then
+  echo 'Installing linux-image-generic so kernel updates keep the nls_utf8 module'
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y linux-image-generic
+  if ! sudo modprobe nls_utf8 2>/dev/null; then
+    die "nls_utf8 is not loadable for the running kernel $kernel; reboot into the newest installed kernel, then run $0 again"
+  fi
+else
+  echo "Skipping nls_utf8 setup: kernel $kernel is not a -generic kernel"
+fi
+
 echo 'Installing Caddy'
 sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y caddy
 

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
-declare -A gallery_metadata_cache_ready=()
-declare -A gallery_metadata_cache_description=()
-declare -A gallery_metadata_cache_time=()
-declare -A gallery_metadata_cache_make=()
-declare -A gallery_metadata_cache_model=()
-declare -A gallery_metadata_cache_lens=()
-declare -A gallery_metadata_cache_exposure=()
-declare -A gallery_metadata_cache_fnumber=()
-declare -A gallery_metadata_cache_iso=()
-declare -A gallery_metadata_cache_focal_length=()
-declare -A gallery_metadata_cache_flash=()
-declare -A gallery_metadata_cache_latitude=()
-declare -A gallery_metadata_cache_longitude=()
+declare -gA gallery_metadata_cache_ready=()
+declare -gA gallery_metadata_cache_description=()
+declare -gA gallery_metadata_cache_time=()
+declare -gA gallery_metadata_cache_make=()
+declare -gA gallery_metadata_cache_model=()
+declare -gA gallery_metadata_cache_lens=()
+declare -gA gallery_metadata_cache_exposure=()
+declare -gA gallery_metadata_cache_fnumber=()
+declare -gA gallery_metadata_cache_iso=()
+declare -gA gallery_metadata_cache_focal_length=()
+declare -gA gallery_metadata_cache_flash=()
+declare -gA gallery_metadata_cache_latitude=()
+declare -gA gallery_metadata_cache_longitude=()
 
 gallery_metadata_cache_clear_album() {
   local album_prefix=$1 metadata_path
@@ -32,6 +32,52 @@ gallery_metadata_cache_clear_album() {
     unset 'gallery_metadata_cache_flash[$metadata_path]'
     unset 'gallery_metadata_cache_latitude[$metadata_path]'
     unset 'gallery_metadata_cache_longitude[$metadata_path]'
+  done
+}
+
+gallery_metadata_cache_store() {
+  local metadata_path=$1
+  shift
+  gallery_metadata_cache_ready["$metadata_path"]=1
+  gallery_metadata_cache_description["$metadata_path"]=${1:-}
+  gallery_metadata_cache_time["$metadata_path"]=${2:-}
+  gallery_metadata_cache_make["$metadata_path"]=${3:-}
+  gallery_metadata_cache_model["$metadata_path"]=${4:-}
+  gallery_metadata_cache_lens["$metadata_path"]=${5:-}
+  gallery_metadata_cache_exposure["$metadata_path"]=${6:-}
+  gallery_metadata_cache_fnumber["$metadata_path"]=${7:-}
+  gallery_metadata_cache_iso["$metadata_path"]=${8:-}
+  gallery_metadata_cache_focal_length["$metadata_path"]=${9:-}
+  gallery_metadata_cache_flash["$metadata_path"]=${10:-}
+  gallery_metadata_cache_latitude["$metadata_path"]=${11:-}
+  gallery_metadata_cache_longitude["$metadata_path"]=${12:-}
+}
+
+# Fill the metadata cache for every media file in an album with a single jq
+# run, so later gallery_read_metadata calls never spawn a process.
+gallery_preload_metadata() {
+  local album_dir=$1 album_rel=$2 metadata_dir=$3
+  local source relative metadata_path chunk field
+  local -a files=() record=()
+
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_dir"}; relative=${relative#/}
+    metadata_path="$metadata_dir/$album_rel/$relative.json"
+    [[ -f "$metadata_path" && -z "${gallery_metadata_cache_ready["$metadata_path"]+present}" ]] &&
+      files+=("$metadata_path")
+  done < <(gallery_find_media "$album_dir")
+  ((${#files[@]})) || return 0
+
+  # Chunk the file list to stay well below the argument-length limit.
+  for ((chunk = 0; chunk < ${#files[@]}; chunk += 500)); do
+    while IFS= read -r -d '' metadata_path; do
+      record=()
+      for ((field = 0; field < 12; field++)); do
+        IFS= read -r -d '' relative || relative=
+        record+=("$relative")
+      done
+      gallery_metadata_cache_store "$metadata_path" "${record[@]}"
+    done < <(gallery_metadata_values_batch "${files[@]:chunk:500}")
   done
 }
 
@@ -58,23 +104,11 @@ gallery_read_metadata() {
     return 0
   fi
   mapfile -t values < <(gallery_metadata_values "$metadata_path")
-  gallery_metadata_cache_ready["$metadata_path"]=1
-  gallery_metadata_cache_description["$metadata_path"]=${values[0]:-}
-  gallery_metadata_cache_time["$metadata_path"]=${values[1]:-}
-  gallery_metadata_cache_make["$metadata_path"]=${values[2]:-}
-  gallery_metadata_cache_model["$metadata_path"]=${values[3]:-}
-  gallery_metadata_cache_lens["$metadata_path"]=${values[4]:-}
-  gallery_metadata_cache_exposure["$metadata_path"]=${values[5]:-}
-  gallery_metadata_cache_fnumber["$metadata_path"]=${values[6]:-}
-  gallery_metadata_cache_iso["$metadata_path"]=${values[7]:-}
-  gallery_metadata_cache_focal_length["$metadata_path"]=${values[8]:-}
-  gallery_metadata_cache_flash["$metadata_path"]=${values[9]:-}
-  gallery_metadata_cache_latitude["$metadata_path"]=${values[10]:-}
-  gallery_metadata_cache_longitude["$metadata_path"]=${values[11]:-}
+  gallery_metadata_cache_store "$metadata_path" "${values[@]}"
 }
 
 gallery_render_media_item() {
-  local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 output_dir=$6 item_index=$7
+  local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 item_index=$6
   local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url medium_relative
   local web_video_url
   local title exif_location exif_model exif_time exif_lens exif_focal_length exif_fstop exif_iso exif_exposure exif_flash viewer_url
@@ -83,11 +117,12 @@ gallery_render_media_item() {
   relative=${source#"$album_dir"}; relative=${relative#/}
   thumb_path="$thumbs_dir/$album_rel/$relative.webp"
   medium_path="${thumb_path%.webp}_medium.webp"
-  media_url="/media/$(gallery_url_escape_path "$album_rel/$relative")"
+  gallery_url_escape_path_to media_url "$album_rel/$relative"
+  media_url="/media/$media_url"
   medium_relative="${relative}.webp"
   medium_relative="${medium_relative%.webp}_medium.webp"
-  medium_url=$(gallery_thumbnail_url "$medium_path" "$album_rel/$medium_relative")
-  thumb_url=$(gallery_thumbnail_url "$thumb_path" "$album_rel/$relative.webp")
+  gallery_thumbnail_url_to medium_url "$medium_path" "$album_rel/$medium_relative"
+  gallery_thumbnail_url_to thumb_url "$thumb_path" "$album_rel/$relative.webp"
   title=${relative##*/}; title=${title%.*}
 
   metadata_path="$metadata_dir/$album_rel/$relative.json"
@@ -106,40 +141,42 @@ gallery_render_media_item() {
     exif_iso=${metadata_values[7]:-}
     exif_focal_length=${metadata_values[8]:-}
     exif_flash=${metadata_values[9]:-}
-    exif_location=$(gallery_metadata_location "${metadata_values[10]:-}" "${metadata_values[11]:-}")
+    if [[ -n "${metadata_values[10]:-}" && -n "${metadata_values[11]:-}" ]]; then
+      exif_location="${metadata_values[10]}, ${metadata_values[11]}"
+    fi
   fi
 
   viewer_url=$medium_url
   if photina_is_video "$source"; then
     if photina_needs_web_video "$source"; then
       web_video_path="${thumb_path%.webp}.web.mp4"
-      web_video_url=$(gallery_thumbnail_url "$web_video_path" "$album_rel/$relative.web.mp4")
+      gallery_thumbnail_url_to web_video_url "$web_video_path" "$album_rel/$relative.web.mp4"
       viewer_url=$web_video_url
     else
       viewer_url=$media_url
     fi
   fi
 
+  local js_thumb js_viewer js_media js_title js_model js_time js_focal js_fstop js_iso js_exposure js_flash js_location js_lens
+  gallery_js_escape_to js_thumb "$thumb_url"; gallery_js_escape_to js_viewer "$viewer_url"
+  gallery_js_escape_to js_media "$media_url"; gallery_js_escape_to js_title "$title"
+  gallery_js_escape_to js_model "$exif_model"; gallery_js_escape_to js_time "$exif_time"
+  gallery_js_escape_to js_focal "$exif_focal_length"; gallery_js_escape_to js_fstop "$exif_fstop"
+  gallery_js_escape_to js_iso "$exif_iso"; gallery_js_escape_to js_exposure "$exif_exposure"
+  gallery_js_escape_to js_flash "$exif_flash"; gallery_js_escape_to js_location "$exif_location"
+  gallery_js_escape_to js_lens "$exif_lens"
+
   (( item_index > 0 )) && printf ','
   if [[ -n "$exif_lens" || -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || \
           -n "$exif_focal_length" || -n "$exif_fstop" || -n "$exif_iso" || \
           -n "$exif_exposure" || -n "$exif_flash" ]]; then
     gallery_print_template item-with-metadata.html \
-      "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-      "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_model")" \
-      "$(gallery_js_escape "$exif_time")" "$(gallery_js_escape "$exif_focal_length")" \
-      "$(gallery_js_escape "$exif_fstop")" "$(gallery_js_escape "$exif_iso")" \
-      "$(gallery_js_escape "$exif_exposure")" "$(gallery_js_escape "$exif_flash")" \
-      "$(gallery_js_escape "$exif_location")" "$(gallery_js_escape "$exif_lens")"
+      "$js_thumb" "$js_viewer" "$js_media" "$js_media" "$js_title" "$js_model" "$js_time" \
+      "$js_focal" "$js_fstop" "$js_iso" "$js_exposure" "$js_flash" "$js_location" "$js_lens"
   else
     gallery_print_template item.html \
-      "$(gallery_js_escape "$thumb_url")" "$(gallery_js_escape "$viewer_url")" \
-      "$(gallery_js_escape "$media_url")" "$(gallery_js_escape "$media_url")" \
-      "$(gallery_js_escape "$title")" "$(gallery_js_escape "$exif_model")" \
-      "$(gallery_js_escape "$exif_time")" "$(gallery_js_escape "$exif_focal_length")" \
-      "$(gallery_js_escape "$exif_fstop")" "$(gallery_js_escape "$exif_iso")" \
-      "$(gallery_js_escape "$exif_location")"
+      "$js_thumb" "$js_viewer" "$js_media" "$js_media" "$js_title" "$js_model" "$js_time" \
+      "$js_focal" "$js_fstop" "$js_iso" "$js_location"
   fi
 
   gallery_image_count=$((gallery_image_count + 1))

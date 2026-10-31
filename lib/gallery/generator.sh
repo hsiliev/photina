@@ -110,7 +110,7 @@ gallery_cleanup_stale_fragments() {
 
 gallery_generate_parent_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6 index_template=$7
-  local child child_name child_urls= preview_url child_preview_url
+  local child child_name child_urls='' preview_url child_preview_url
 
   printf 'Generating album fragment: %s ...\n' "$album_name"
   preview_url=$(gallery_nested_album_preview_url "$album_path" "$album_name" "$thumbs_dir")
@@ -163,9 +163,9 @@ generate_gallery() {
   local -a allowed_albums=("$@")
   local index_template fragment_dir album_path album_name
   local -a direct_media=()
-  gallery_next_id=0
   gallery_allowed_albums=("${allowed_albums[@]}")
   gallery_output_url_prefix="/${output_dir##*/}"
+  # shellcheck disable=SC2034 # read by gallery_print_template in core.sh
   gallery_template_dir="$script_dir/templates/gallery"
 
   echo "Generating gallery in $output_dir"

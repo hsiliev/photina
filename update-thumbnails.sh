@@ -35,6 +35,22 @@ command -v sudo >/dev/null || die 'sudo is required to check Caddy access'
 
 output_dir=$(realpath -m -- "${OUTPUT_DIR:-/mnt/gallery/dist}")
 
+# UTF-8 album names on mounted volumes (vfat/exfat/ntfs/iso9660) need the
+# nls_utf8 kernel module. It may also be built into the kernel, so modprobe
+# failing alone is not an error. Warn only: ext4/xfs volumes do not need it.
+check_utf8_support() {
+  local kernel
+  kernel=$(uname -r)
+  echo 'Checking UTF-8 filename support (nls_utf8)'
+  if [[ -d /sys/module/nls_utf8 ]] ||
+    grep -qs '/nls_utf8\.ko' "/lib/modules/$kernel/modules.builtin" ||
+    modprobe -n nls_utf8 >/dev/null 2>&1; then
+    echo '  available: nls_utf8'
+  else
+    warn "kernel module nls_utf8 is not available for $kernel; UTF-8 album and file names may fail on non-ext4 volumes (install the kernel's extra modules package, then run: modprobe nls_utf8)"
+  fi
+}
+
 check_caddy_access() {
   local path current
   local -a access_paths=("$albums_dir" "$thumbs_dir" "$output_dir")
@@ -58,5 +74,6 @@ check_caddy_access() {
 
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
+check_utf8_support
 check_caddy_access
 update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$medium_size" "$display_mode"

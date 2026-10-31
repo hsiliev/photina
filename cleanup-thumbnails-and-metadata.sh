@@ -5,6 +5,8 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 # shellcheck source=lib/common.sh
 source "$script_dir/lib/common.sh"
+# shellcheck source=lib/thumbnails.sh
+source "$script_dir/lib/thumbnails.sh"
 
 photina_load_config
 
@@ -19,10 +21,9 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
 
-# shellcheck source=lib/thumbnails.sh
-source "$script_dir/lib/thumbnails.sh"
-
+# shellcheck disable=SC2034 # passed by name to functions that use namerefs
 declare -A expected_thumbnails=()
+# shellcheck disable=SC2034 # passed by name to functions that use namerefs
 declare -A expected_metadata=() expected_checksums=()
 while IFS= read -r -d '' album_path; do
   album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}

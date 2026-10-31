@@ -15,12 +15,51 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
 `THUMBNAILS_DIR` and `METADATA_DIR`; gallery HTML is written under
 `OUTPUT_DIR/admin` and `OUTPUT_DIR/guest`.
 
+## Project layout
+
+```text
+*.sh                      user-facing commands (listed under Main commands)
+lib/common.sh             shared die/warn/config/core-count/video helpers
+lib/thumbnails.sh         thumbnail, medium, web-video, metadata, checksum, cleanup
+lib/caddy.sh              generate_caddyfile: merges the managed Caddy block
+lib/gallery/              gallery generator (main, core, media, albums, generator,
+                          generate = CLI entry for admin|guest, delete)
+lib/fix/                  fix-flickr-names.sh helpers (target-input.sh,
+                          parse-whereisit-xml.py, closest-matches.awk)
+templates/                index.html.template (browser logic), Caddyfile.template,
+                          photina.conf.template, gallery/*.html printf fragments
+assets/favicon.png        copied into each generated gallery
+tests/                    BATS suites: gallery, scripts, fix_flickr_names
+README.md                 end-user installation and usage
+```
+
+## Configuration
+
+Commands read `PHOTINA_CONFIG` (default `/etc/photina/photina.conf`, a Bash
+file; a warning is printed unless it is mode 600). Keys, with the template in
+`templates/photina.conf.template`: `ALBUMS_DIR`, `OUTPUT_DIR`,
+`THUMBNAILS_DIR`, `METADATA_DIR`, `CADDYFILE`, `HOST`, `PORT`,
+`ADMIN_PASSWORD`, `GUEST_PASSWORD` (hashed with `caddy hash-password`, never
+written in plaintext), `GUEST_ALBUMS` (array of album paths guests may open),
+`THUMBNAIL_SIZE`, `MEDIUM_SIZE`, `IMAGE_EXTENSIONS`, `VIDEO_EXTENSIONS`, and
+`THUMBNAIL_DISPLAY_MODE` (`cascading`, `justified`, or a grid mode). Output
+directories must lie outside `ALBUMS_DIR`.
+
+Runtime dependencies: bash 4.4+ (namerefs, `read -d`), GNU `find`/coreutils,
+ImageMagick (`magick` or `convert`), `exiftool`, `jq`, `ffmpeg`,
+`ffmpegthumbnailer`, `md5sum`, `cksum`, and `caddy`/`sudo`/`systemctl` for
+serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
+`bats` is needed only for tests.
+
 ## Main commands
 
 - `./update-thumbnails.sh` generates/reuses thumbnails, medium images, web
   video previews, EXIF metadata, and `md5sums.txt` manifests. It also removes
   stale thumbnail/metadata files and empty thumbnail/metadata directories for
   deleted albums.
+  Before processing it warns (does not fail) when the `nls_utf8` kernel module
+  is neither loaded, built in, nor loadable via `modprobe -n`, since non-ASCII
+  album names can break on vfat/exfat/ntfs mounts without it.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
   thumbnail, medium, and web-video outputs. It exits with status 1 if any are
   missing; it does not modify the thumbnail tree.
@@ -70,6 +109,30 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
   rename and is excluded from all later matching and closest-match listings.
   Date-time matches allow a difference of up to one epoch second; date-only
   GPS fallback matches remain calendar-date exact.
+- `./install-dependencies.sh` installs the dependencies and the Caddy
+  package repository on Ubuntu only, and installs the default
+  `/etc/photina/photina.conf` (mode 600) if none exists.
+  On `-generic` kernels it also installs `linux-image-generic`, which depends
+  on `linux-modules-extra-<version>`, so every kernel upgrade keeps the
+  `nls_utf8` module (the minimal `linux-image-virtual` does not). It then
+  tries `modprobe nls_utf8`; if that fails (typically because a newer kernel
+  was just installed) it stops with an error asking for a reboot and a rerun,
+  before Caddy and the config are installed.
+- `./update-caddy.sh` regenerates Photina's managed Caddy block (from
+  `templates/Caddyfile.template`, via `lib/caddy.sh`) and reloads Caddy
+  without regenerating galleries. Gallery generation also does this.
+- `./check-duplicates.sh` reads all `METADATA_DIR/**/md5sums.txt` manifests
+  and lists files sharing an MD5; exits 1 if duplicates exist. It never
+  modifies files.
+- `./eliminate-duplicates.sh` finds the same duplicates and replaces the
+  duplicate files' generated thumbnails, medium images, and metadata with
+  hard links to the first copy's; the album sources are not changed.
+- `./split-by-year.sh DIRECTORY` moves images directly inside DIRECTORY into
+  `YYYY` subdirectories using EXIF `DateTimeOriginal`, `CreateDate`, or
+  `CreationDate`; images without a usable date stay in place with a warning.
+  It requires only `exiftool` and `find`, not the Photina config. It uses
+  `mv -f`, so an existing file of the same name in the year directory is
+  overwritten.
 - `./compare-dirs.sh DIRECTORY1 DIRECTORY2` compares the filenames of regular
   files directly inside two directories and reports files missing from either
   side.
@@ -92,7 +155,9 @@ removed, or changed media.
   config file and warns if it is not private), `photina_core_count`, and the
   video helpers `photina_is_video` / `photina_needs_web_video`. Command scripts
   source it before loading the config; `lib/thumbnails.sh` and
-  `lib/gallery/core.sh` source it themselves. Do not reintroduce per-script or
+  `lib/gallery/core.sh` source it themselves. Every config-reading command
+  uses `photina_load_config`; only `split-by-year.sh` and
+  `install-dependencies.sh` (no Photina config) keep a local `die`. Do not reintroduce per-script or
   per-library copies of these helpers.
 - `lib/thumbnails.sh` exposes `thumbnail_list_media` (sorted images+videos for
   one album), `thumbnail_media_source` (precomputed list or fresh scan),
@@ -103,6 +168,30 @@ removed, or changed media.
   only the input (`-auto-orient` for images) and medium quality differ.
   Relative-path expansion stays inline (`${source#"$album_path"}`) because a
   command substitution per file would fork in hot loops.
+
+## Performance notes (fork avoidance)
+
+- `thumbnail_filter_pending` drops media whose thumbnail, medium image, and
+  required web video already exist before `xargs` starts workers, so unchanged
+  files cost no bash process. `thumbnail_process_item` still re-checks.
+- `gallery_preload_metadata` reads every metadata JSON of an album with one
+  `jq` run per 500 files (`gallery_metadata_values_batch`, NUL-delimited
+  records) and fills the metadata cache. `gallery_read_metadata` falls back to
+  one `jq` per file only for files that were not preloaded. The jq field
+  definitions are shared in `gallery_metadata_jq_values`.
+- `gallery_preload_file_versions` caches thumbnail mtimes for an album with a
+  single `find -printf`; `gallery_file_version_to` falls back to `stat`.
+- Hot-path string helpers have forkless `*_to VARNAME value` variants
+  (`gallery_js_escape_to`, `gallery_url_escape_path_to`,
+  `gallery_thumbnail_url_to`); the printing versions wrap them. Do not use
+  `$(...)` around these inside per-image loops. Avoid names `result`, `value`,
+  `escaped`, `version` for variables passed as the target name.
+- Templates are read once and cached in `gallery_template_cache`.
+- Global caches use `declare -gA` so they stay global when the libraries are
+  sourced inside a function (as the BATS `setup` does).
+- Measured on 300 small photos: gallery generation 15.7s -> 1.3s, output
+  byte-identical (besides the output directory name). Verify performance
+  changes by diffing generated output against the previous version.
 
 ## Gallery generation architecture
 
@@ -249,10 +338,16 @@ Reused gallery fragments do not print an additional `skipped` line.
 
 ## Validation
 
+Shellcheck (0.11) is clean. Suppressions are limited to namerefs (arrays
+passed by name), globals shared between sourced libraries, and the jq program
+string; each carries a reason comment. Keep new code warning-free rather than
+adding blanket disables.
+
 Useful checks:
 
 ```bash
 bash -n ./*.sh lib/*.sh lib/gallery/*.sh
+shellcheck -x -P SCRIPTDIR ./*.sh lib/*.sh lib/gallery/*.sh
 git diff --check
 bats tests
 ```

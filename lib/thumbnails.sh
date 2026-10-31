@@ -111,6 +111,21 @@ thumbnail_process_item() {
   thumbnail_make "$source" "$thumbnail" "$thumbnail_size" "$image_tool" "$relative" "$medium_size" "$display_mode"
 }
 
+# Filter a NUL-delimited media list on stdin down to files whose thumbnail,
+# medium image, or web video is missing. Done in-process so complete files do
+# not cost a bash start each.
+thumbnail_filter_pending() {
+  local album_path=$1 album_name=$2 thumbs_dir=$3 source relative thumbnail
+  while IFS= read -r -d '' source; do
+    relative=${source#"$album_path"}; relative=${relative#/}
+    thumbnail="$thumbs_dir/$album_name/$relative.webp"
+    [[ -f "$thumbnail" && -f "${thumbnail%.webp}_medium.webp" ]] || { printf '%s\0' "$source"; continue; }
+    if photina_needs_web_video "$source" && [[ ! -f "${thumbnail%.webp}.web.mp4" ]]; then
+      printf '%s\0' "$source"
+    fi
+  done
+}
+
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9 media_file=${10:-}
@@ -124,7 +139,7 @@ thumbnail_batch_album() {
     thumbnail_list_media "$album_path"
   else
     thumbnail_find_media "$album_path" video direct
-  fi |
+  fi | thumbnail_filter_pending "$album_path" "$album_name" "$thumbs_dir" |
     if ! xargs -0 -r -n 1 -P "$parallel_jobs" bash -c '
       thumbnail_process_item "$8" "$1" "$2" "$3" "$4" "$5" "$6" "$7"
     ' _ "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$image_tool" "$medium_size" "$display_mode"; then
@@ -270,6 +285,7 @@ thumbnail_cleanup_stale() {
   find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print -delete
 }
 
+# shellcheck disable=SC2034 # arrays are namerefs to the caller's variables
 thumbnail_add_expected_outputs() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 media_file=$4 expected_name=$5
   local source relative thumbnail
@@ -286,6 +302,7 @@ thumbnail_add_expected_outputs() {
   done <"$media_file"
 }
 
+# shellcheck disable=SC2034 # arrays are namerefs to the caller's variables
 thumbnail_add_expected_metadata() {
   local album_path=$1 album_name=$2 metadata_dir=$3 media_file=$4 metadata_name=$5 checksums_name=$6
   local source relative
@@ -335,6 +352,7 @@ update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
   local album_path album_name media_file
+  # shellcheck disable=SC2034 # passed by name to functions that use namerefs
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
 
   if command -v magick >/dev/null; then
