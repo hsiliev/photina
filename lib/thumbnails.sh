@@ -388,16 +388,26 @@ thumbnail_cleanup_stale_metadata() {
   find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print -delete
 }
 
-# Generate thumbnails, metadata, and checksums for one album. Returns 1 on any failure.
+# Generate thumbnails, metadata, and checksums for one album. Sets the global
+# THUMBNAIL_FAILURE_REASON and returns 1 on failure, naming the failed stage.
 thumbnail_update_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 thumbnail_size=$5 medium_size=$6
   local image_tool=$7 parallel_jobs=$8 display_mode=$9 media_file=${10}
 
   thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" \
-    "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file" || return 1
-  thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" || return 1
+    "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file" || {
+      THUMBNAIL_FAILURE_REASON='thumbnail generation failed for one or more files (see warnings above)'
+      return 1
+    }
+  thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" || {
+    THUMBNAIL_FAILURE_REASON='EXIF metadata extraction failed (exiftool/jq error above)'
+    return 1
+  }
   if thumbnail_checksums_need_update "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
-    thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" "$media_file" || return 1
+    thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" "$media_file" || {
+      THUMBNAIL_FAILURE_REASON='md5 checksum generation failed (unreadable file?)'
+      return 1
+    }
   else
     printf '\tChecksums: unchanged for %s (skipped)\n' "$album_name"
   fi
@@ -436,10 +446,11 @@ update_thumbnails() {
       thumbnail_add_expected_outputs "$album_path" "$album_name" "$thumbs_dir" "$media_file" expected_thumbnails
       thumbnail_add_expected_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" expected_metadata expected_checksums
       echo "Scanning album: $album_name"
+      THUMBNAIL_FAILURE_REASON='thumbnail/metadata update failed'
       thumbnail_update_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" \
         "$medium_size" "$image_tool" "$parallel_jobs" "$display_mode" "$media_file" || {
           thumbnail_failed=1
-          failed_albums+=("$album_name (thumbnail/metadata update failed)")
+          failed_albums+=("$album_name ($THUMBNAIL_FAILURE_REASON)")
         }
     fi
     rm -f -- "$media_file"

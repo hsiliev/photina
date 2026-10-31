@@ -258,10 +258,16 @@ EOF
   grep -qF -- '"/thumbnails/Album & Friends/*"' "$caddyfile"
 }
 
+# Create non-empty files (fix-names deletes empty ones).
+mkfile() {
+  local f
+  for f in "$@"; do printf x >"$f"; done
+}
+
 @test "fix-names renames nested files and directories and skips conflicts" {
   root="$test_root/trim"
   mkdir -p -- "$root/Album  /Sub " "$root/Keep"
-  touch -- "$root/Album  /Sub /photo.jpg " "$root/Album  /clean.jpg" "$root/dup" "$root/dup " "$root/   "
+  mkfile "$root/Album  /Sub /photo.jpg " "$root/Album  /clean.jpg" "$root/dup" "$root/dup " "$root/   "
 
   run "$PROJECT_ROOT/fix-names.sh" --dry-run "$root"
   [ "$status" -eq 1 ]
@@ -293,7 +299,7 @@ EOF
 @test "fix-names also trims trailing dots" {
   root="$test_root/dots"
   mkdir -p -- "$root/Trip.. "
-  touch -- "$root/Trip.. /photo.jpg."
+  mkfile "$root/Trip.. /photo.jpg."
 
   run "$PROJECT_ROOT/fix-names.sh" "$root"
 
@@ -304,7 +310,7 @@ EOF
 @test "fix-names reports names with characters SMB cannot store" {
   root="$test_root/forbidden"
   mkdir -p -- "$root/Album"
-  touch -- "$root/Album/a:b.jpg" "$root/Album/what?.jpg" "$root/Album/pipe|name.jpg" \
+  mkfile "$root/Album/a:b.jpg" "$root/Album/what?.jpg" "$root/Album/pipe|name.jpg" \
     "$root/Album/ctl"$'\x01'".jpg" "$root/Album/mapped"$'\xef\x80\xa2'".jpg" \
     "$root/Album/fine.jpg" "$root/Album/q:trail "
 
@@ -481,4 +487,40 @@ EOF
   run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/delete-admin-gallery.sh"
   [ "$status" -eq 0 ]
   [ ! -e "$output_root/admin" ]
+}
+
+@test "fix-names shortens long names with a middle ellipsis and keeps extensions" {
+  root="$test_root/long"
+  mkdir -p -- "$root"
+  long=$(printf 'абвгд%.0s' {1..10})   # 50 characters
+  mkfile "$root/${long}.jpg" "$root/short.jpg"
+  mkdir -- "$root/$long"
+
+  run "$PROJECT_ROOT/fix-names.sh" --max-length 20 "$root"
+
+  [ "$status" -eq 0 ]
+  [ -f "$root/short.jpg" ]
+  [ -f "$root/абвгдабв…гдабвгд.jpg" ]
+  [ -d "$root/абвгдабвгд…бвгдабвгд" ]
+  [[ "$output" == *'Renamed 2 item(s)'* ]]
+}
+
+@test "fix-names deletes empty files but not symlinks, and honors dry-run" {
+  root="$test_root/empty"
+  mkdir -p -- "$root/sub"
+  : >"$root/sub/zero.jpg"
+  printf x >"$root/keep.jpg"
+  ln -s zero.jpg "$root/sub/link.jpg"
+
+  run "$PROJECT_ROOT/fix-names.sh" --dry-run "$root"
+  [ "$status" -eq 0 ]
+  [ -e "$root/sub/zero.jpg" ]
+  [[ "$output" == *'Would delete 1 empty file(s).'* ]]
+
+  run "$PROJECT_ROOT/fix-names.sh" "$root"
+  [ "$status" -eq 0 ]
+  [ ! -e "$root/sub/zero.jpg" ]
+  [ -f "$root/keep.jpg" ]
+  [ -L "$root/sub/link.jpg" ]
+  [[ "$output" == *'Deleted 1 empty file(s).'* ]]
 }

@@ -24,12 +24,10 @@ lib/thumbnails.sh         thumbnail, medium, web-video, metadata, checksum, clea
 lib/caddy.sh              generate_caddyfile: merges the managed Caddy block
 lib/gallery/              gallery generator (main, core, media, albums, generator,
                           generate = CLI entry for admin|guest, delete)
-lib/fix/                  fix-flickr-names.sh helpers (target-input.sh,
-                          parse-whereisit-xml.py, closest-matches.awk)
 templates/                index.html.template (browser logic), Caddyfile.template,
                           photina.conf.template, gallery/*.html printf fragments
 assets/favicon.png        copied into each generated gallery
-tests/                    BATS suites: gallery, scripts, fix_flickr_names
+tests/                    BATS suites: gallery, scripts
 README.md                 end-user installation and usage
 ```
 
@@ -48,7 +46,7 @@ directories must lie outside `ALBUMS_DIR`.
 Runtime dependencies: bash 4.4+ (namerefs, `read -d`), GNU `find`/coreutils,
 ImageMagick (`magick` or `convert`), `exiftool`, `jq`, `ffmpeg`,
 `ffmpegthumbnailer`, `md5sum`, `cksum`, and `caddy`/`sudo`/`systemctl` for
-serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
+serving.
 `bats` is needed only for tests.
 
 ## Main commands
@@ -78,7 +76,9 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   original exists, the file is kept and counted in a "Kept N ..." line.
   Metadata `.json` files get the same check. Cleanup is skipped entirely when
   any album failed to scan or update (the skip message lists each failed
-  album with the reason), and refused when the albums directory is empty
+  album with the failed stage as the reason: thumbnail generation, EXIF
+  metadata extraction, or md5 checksums, set by `thumbnail_update_album` in
+  the global `THUMBNAIL_FAILURE_REASON`; details are in the warnings above it), and refused when the albums directory is empty
   (`thumbnail_albums_dir_is_populated`, e.g. an unmounted share). There is no
   override flag and no percentage limit. Do not remove these checks.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
@@ -102,34 +102,6 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
 - `./delete-all-thumbnails-and-metadata.sh` deletes thumbnail and metadata
   caches; `./delete-album-thumbnails-and-metadata.sh ALBUM` deletes one album's
   caches.
-- `./fix-flickr-names.sh FLICKR_DIR MEDIA_DIR_OR_XML` renames readable Flickr
-  files to the names of unreadable target files. The second argument may be a
-  media directory or a WhereIsIt XML export. XML mode reads target names,
-  sizes, and camera/digitized dates from the report and never opens the
-  referenced media files. An embedded EXIF original/preserved
-  filename metadata takes priority; otherwise it first uses a unique filesize
-  match. The filename metadata lookup uses `OriginalFileName` and
-  `PreservedFileName`, never the source filesystem `FileName`. Only regular
-  files directly inside `MEDIA_DIR` are target candidates; its subdirectories
-  are ignored.
-  If that is unavailable, it first checks an unambiguous timestamp encoded in
-  target names matching `YYYYMMDD_HHMMSS` (for example,
-  `IMG_20140418_113534.jpg`), then uses filesize. If the size is unavailable,
-  non-unique, or does not identify a target, it compares the source EXIF
-  `DateTimeOriginal`, `CreateDate`, and `ModifyDate` values with target
-  filesystem modification and creation times. Filename timestamps are also
-  considered during this date fallback. An exact filename timestamp is always
-  preferred over a filename timestamp that differs by one second.
-  If those EXIF dates are absent, `GPSDateStamp` is used as a date-only
-  fallback against the target file calendar dates.
-  It skips ambiguous matches and reports them as unmatched or collisions.
-  Successful rename output identifies whether the match used EXIF filename,
-  filename date, size, or created/modified date. Files that cannot be renamed are collected
-  and printed together at the end, with the closest target by byte-size
-  difference and timestamp difference. A target is consumed after a successful
-  rename and is excluded from all later matching and closest-match listings.
-  Date-time matches allow a difference of up to one epoch second; date-only
-  GPS fallback matches remain calendar-date exact.
 - `./install-dependencies.sh` installs the dependencies and the Caddy
   package repository on Ubuntu only, and installs the default
   `/etc/photina/photina.conf` (mode 600) if none exists.
@@ -166,7 +138,17 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   U+F020-U+F029 (UTF-8 `EF 80 A0-A9`) that Linux CIFS with `mapposix` shows in
   their place. `find` prefilters candidates with `-name` patterns in a single
   traversal; bash classifies them with `has_forbidden_character`, so keep the
-  two lists in sync. Names are checked after trimming. Exit status is 1 when
+  two lists in sync. Names are checked after trimming. It first deletes empty (0 byte) regular files
+  (symlinks are never touched; `--dry-run` only reports them; a separate
+  `find -type f -empty` pass runs before the rename scan and does not affect
+  the exit status). Test fixtures must therefore have content. It also
+  shortens names longer than
+  `--max-length N` characters (default 100, minimum 8) by replacing the middle
+  of the stem with `…` (U+2026); a short file extension is kept (not for
+  directories) and the result stays within 255 bytes (`shorten_name`). The
+  script forces `LC_ALL=C.UTF-8` so lengths and slicing count characters; the
+  `find` prefilter uses a `-regex` on basename length. Shortened-name
+  collisions are skipped like other collisions. Exit status is 1 when
   anything was skipped or forbidden. It never overwrites and does not read the
   Photina config. Names the SMB server cannot represent (trailing space or
   dot, illegal characters) are exposed by a CIFS mount only as Samba-mangled
@@ -433,50 +415,8 @@ shallow multi-level fragments, manifest checksum invalidation, template
 JavaScript validation, missing-thumbnail checks, direct-directory comparison,
 selected and all cache deletion, admin and guest gallery deletion, guest parent
 preview resolution with restricted permissions, duplicate detection and
-elimination, EXIF year splitting, and comprehensive Flickr filename matching
-(EXIF names, sizes, timestamps, date fallbacks, GPS dates, closest-match
-diagnostics, and WhereIsIt XML import).
-
-`fix-flickr-names.sh` requires GNU `find`, `awk`, `exiftool`, `jq`, and
-`python3`; its date
- fallback uses epoch-second comparisons with a one-second tolerance and treats
- either target mtime or birth time as a match. Date-only GPS fallback remains
- exact. Target files are indexed in one `find` traversal for names,
-byte sizes, modification times, and creation times. The Flickr traversal reads
-  embedded EXIF filename/date fields and never uses Flickr source filesystem
-  dates. The Flickr source scan is also limited to regular files directly
-  inside `FLICKR_DIR`; source subdirectories are ignored. No content or EXIF
-  is read from target files; only the initial `find` metadata scan is performed
-  for `MEDIA_DIR`.
-Matching uses in-memory Bash associative indexes for target sizes, timestamp
-buckets, and exact calendar dates, so normal size/date matching does not scan
-the complete target list for every Flickr file. Date indexes are built lazily
-only when date fallback is first needed, and duplicate-size lists are built
-only for sizes that actually repeat. The diagnostic fallback still scans
-unused targets only when a file cannot be renamed. The one-second timestamp
-buckets preserve the date matching tolerance without changing rename
-behavior; filename timestamps use the same one-second tolerance and GPS-only
-dates use exact calendar-date matching. Flickr metadata is read in one
-ExifTool JSON batch, parsed by `jq`, and retained as an in-memory Bash record
-array before matching starts. The script logs indexing, batch completion,
-every 100 processed source files, and final counts. These progress messages
-are indented by three spaces beneath the main phase headings.
-During matching, files needing failure diagnostics print a queueing message.
-After matching, one `awk` pass calculates closest size/time matches for all
-queued failures, avoiding a separate full Bash target scan and repeated date
-subprocesses for every failed file. The batch diagnostic phase prints its own
-start and completion messages.
-Closest-match diagnostics receive and honor each target's consumed flag, so
-they never report a target that was already used by an earlier successful
-rename.
-A filename-date match is also attempted across all targets when a shared file
-size has no matching date, allowing the filename timestamp to resolve a target
-whose size differs from the Flickr copy.
-A unique size match remains sufficient and does not require matching dates.
-
-Target-record source selection is implemented in `lib/fix/target-input.sh`;
-WhereIsIt XML parsing is implemented in `lib/fix/parse-whereisit-xml.py`; and
-the closest-match AWK program is maintained in `lib/fix/closest-matches.awk`.
+elimination, EXIF year splitting, and `fix-names.sh` (trailing space/dot trimming,
+forbidden/mangled names, long-name shortening, empty-file deletion).
 
 The inline JavaScript can be extracted from `templates/index.html.template`
 and checked with `node --check`. Focused tests should generate temporary
