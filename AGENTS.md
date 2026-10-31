@@ -74,6 +74,9 @@ serving.
   `<original name>.webp`, e.g. `IMG_1.JPG.webp`; originals are rarely `.webp`
   themselves, though `pic.webp` -> `pic.webp.webp` also works). If the
   original exists, the file is kept and counted in a "Kept N ..." line.
+  The stale-cleanup phase messages ("Checking for stale ...", "Removing ...",
+  "Kept ...") are printed at the first level (no tab indent), unlike the
+  per-album lines, which are indented under "Scanning album:".
   Metadata `.json` files get the same check. Cleanup is skipped entirely when
   any album failed to scan or update (the skip message lists each failed
   album with the failed stage as the reason: thumbnail generation, EXIF

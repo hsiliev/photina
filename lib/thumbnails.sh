@@ -306,7 +306,7 @@ thumbnail_cleanup_stale() {
   [[ -d "$thumbs_dir" ]] || return 0
   thumbnail_albums_dir_is_populated "$albums_dir" || return 1
 
-  printf '\tChecking for stale thumbnail files in %s ...\n' "$thumbs_dir"
+  printf 'Checking for stale thumbnail files in %s ...\n' "$thumbs_dir"
   while IFS= read -r -d '' thumbnail; do
     [[ -n ${expected["$thumbnail"]+present} ]] && continue
     stale_relative=${thumbnail#"$thumbs_dir"/}
@@ -321,12 +321,12 @@ thumbnail_cleanup_stale() {
     else
       reason='no such original album'
     fi
-    printf '\tRemoving stale thumbnail: %s (%s)\n' "$stale_relative" "$reason"
+    printf 'Removing stale thumbnail: %s (%s)\n' "$stale_relative" "$reason"
     rm -f -- "$thumbnail"
   done < <(find -P "$thumbs_dir" -type f -print0)
-  (( kept == 0 )) || printf '\tKept %d thumbnail(s) the album scan did not list because their originals exist\n' "$kept"
+  (( kept == 0 )) || printf 'Kept %d thumbnail(s) the album scan did not list because their originals exist\n' "$kept"
 
-  printf '\tRemoving empty thumbnail directories in %s ...\n' "$thumbs_dir"
+  printf 'Removing empty thumbnail directories in %s ...\n' "$thumbs_dir"
   find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print -delete
 }
 
@@ -368,7 +368,7 @@ thumbnail_cleanup_stale_metadata() {
   [[ -d "$metadata_dir" ]] || return 0
   thumbnail_albums_dir_is_populated "$albums_dir" || return 1
 
-  printf '\tChecking for stale metadata files in %s ...\n' "$metadata_dir"
+  printf 'Checking for stale metadata files in %s ...\n' "$metadata_dir"
   while IFS= read -r -d '' metadata; do
     [[ -n ${metadata_expected["$metadata"]+present} || -n ${checksums_expected["$metadata"]+present} ]] && continue
     stale_relative=${metadata#"$metadata_dir"/}
@@ -379,12 +379,12 @@ thumbnail_cleanup_stale_metadata() {
         continue
       fi
     fi
-    printf '\tRemoving stale metadata: %s\n' "$stale_relative"
+    printf 'Removing stale metadata: %s\n' "$stale_relative"
     rm -f -- "$metadata"
   done < <(find -P "$metadata_dir" -type f -print0)
-  (( kept == 0 )) || printf '\tKept %d metadata file(s) the album scan did not list because their originals exist\n' "$kept"
+  (( kept == 0 )) || printf 'Kept %d metadata file(s) the album scan did not list because their originals exist\n' "$kept"
 
-  printf '\tRemoving empty metadata directories in %s ...\n' "$metadata_dir"
+  printf 'Removing empty metadata directories in %s ...\n' "$metadata_dir"
   find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print -delete
 }
 
