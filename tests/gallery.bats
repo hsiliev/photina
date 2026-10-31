@@ -120,6 +120,30 @@ load test_helper
   ! grep -qF -- "<!-- photina-media-manifest: $initial_manifest -->" "$output_dir/albums/Album.html"
 }
 
+@test "adding a child album regenerates an unchanged parent fragment" {
+  albums="$test_root/albums"
+  output_dir="$test_root/output"
+  thumbs="$test_root/thumbnails"
+  metadata="$test_root/metadata"
+  mkdir -p -- "$albums/Parent/Child1" "$albums/Parent/Child2" "$thumbs" "$metadata/Parent" "$metadata/Parent/Child1" "$metadata/Parent/Child2"
+  printf one >"$albums/Parent/own.jpg"
+  printf a >"$albums/Parent/Child1/a.jpg"
+  printf b >"$albums/Parent/Child2/b.jpg"
+  (cd "$albums/Parent" && md5sum own.jpg >"$metadata/Parent/md5sums.txt")
+  (cd "$albums/Parent/Child1" && md5sum a.jpg >"$metadata/Parent/Child1/md5sums.txt")
+  (cd "$albums/Parent/Child2" && md5sum b.jpg >"$metadata/Parent/Child2/md5sums.txt")
+
+  mv "$albums/Parent/Child2" "$test_root/Child2.away"
+  run generate_gallery "$PROJECT_ROOT" "$albums" "$output_dir" "$thumbs" "$metadata" 250 cascading
+  [ "$status" -eq 0 ]
+  ! grep -qF -- 'Child2' "$output_dir/albums/Parent.html"
+
+  mv "$test_root/Child2.away" "$albums/Parent/Child2"
+  run generate_gallery "$PROJECT_ROOT" "$albums" "$output_dir" "$thumbs" "$metadata" 250 cascading
+  [ "$status" -eq 0 ]
+  grep -qF -- 'Child2' "$output_dir/albums/Parent.html"
+}
+
 @test "index template inline JavaScript is syntactically valid" {
   which node || skip "node is required for syntax check"
   js_tmp="$test_root/inline.js"

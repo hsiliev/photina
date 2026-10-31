@@ -23,6 +23,7 @@ gallery_render_album() {
   else
     printf '<!-- photina-media-manifest: missing -->\n'
   fi
+  printf '<!-- photina-children: %s -->\n' "$(gallery_children_signature "$album_dir" "$album_rel")"
 
   album_name=${album_dir%/}; album_name=${album_name##*/}
   # NanoGallery's XS (<480px) and SM (<992px) sizes follow the viewport.

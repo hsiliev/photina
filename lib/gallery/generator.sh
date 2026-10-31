@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-gallery_fragment_version=11
+gallery_fragment_version=12
 
 gallery_album_is_visible() {
   local album_rel=$1 allowed
@@ -80,6 +80,20 @@ gallery_album_manifest_checksum() {
   cksum -- "$manifest" | awk '{print $1 ":" $2}'
 }
 
+# Checksum of the visible immediate child album names. A fragment embeds its
+# child summaries, so adding, removing, or renaming a child must invalidate it
+# even when the album's own md5sums.txt manifest is unchanged.
+gallery_children_signature() {
+  local album_path=$1 album_name=$2 child child_name names=''
+
+  while IFS= read -r -d '' child; do
+    child_name=${child%/}; child_name=${child_name##*/}
+    gallery_album_is_visible "$album_name/$child_name" || continue
+    names+="$child_name"$'\n'
+  done < <(gallery_find_child_albums "$album_path")
+  printf '%s' "$names" | cksum | awk '{print $1 ":" $2}'
+}
+
 gallery_album_needs_regeneration() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 fragment_path=${5:-}
 
@@ -88,6 +102,7 @@ gallery_album_needs_regeneration() {
     local manifest_checksum
     manifest_checksum=$(gallery_album_manifest_checksum "$album_name" "$metadata_dir") || return 0
     grep -qF -- "<!-- photina-media-manifest: $manifest_checksum -->" "$fragment_path" || return 0
+    grep -qF -- "<!-- photina-children: $(gallery_children_signature "$album_path" "$album_name") -->" "$fragment_path" || return 0
   fi
 
   return 1

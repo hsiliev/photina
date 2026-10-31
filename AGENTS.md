@@ -327,14 +327,19 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 11 -->
+<!-- photina-fragment-version: 12 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
+<!-- photina-children: CHECKSUM:SIZE -->
 ```
 
 `gallery_fragment_version` in `lib/gallery/generator.sh` must be incremented
 when fragment structure or lazy-loading markup changes. Fragments are reused
 only when the version matches, the manifest checksum matches the current
-`md5sums.txt`. Run `update-thumbnails.sh` first so the manifest and metadata
+`md5sums.txt`, and the `photina-children` checksum (of the visible immediate
+child album names, `gallery_children_signature`) matches. The last check exists
+because a fragment embeds its child summaries: a new sub-album under an album
+whose own media did not change (e.g. `Семейство/Мая/45. ...`) was otherwise
+missing from the reused parent fragment. Run `update-thumbnails.sh` first so the manifest and metadata
 are current.
 
 The manifest marker is an internal HTML comment; it does not change metadata,
