@@ -133,6 +133,14 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   It requires only `exiftool` and `find`, not the Photina config. It uses
   `mv -f`, so an existing file of the same name in the year directory is
   overwritten.
+- `./trim-trailing-spaces.sh [-n|--dry-run] DIRECTORY` renames files and
+  directories below DIRECTORY whose names end with spaces, deepest entries
+  first (`find -depth`) so parent renames never invalidate pending paths.
+  DIRECTORY itself is not renamed. Names that would become empty or collide
+  with an existing entry are skipped with a warning and make the exit status
+  1; it never overwrites. `--dry-run` only reports. It does not read the
+  Photina config. Rerun `update-thumbnails.sh` afterwards, since renamed
+  media get new thumbnails and the old ones become stale.
 - `./compare-dirs.sh DIRECTORY1 DIRECTORY2` compares the filenames of regular
   files directly inside two directories and reports files missing from either
   side.

@@ -170,6 +170,19 @@ processes images directly inside the supplied directory, leaves images without
 a usable year in place, and overwrites same-named files already in a year
 directory.
 
+## Removing trailing spaces from names
+
+To strip trailing spaces from file and directory names below a directory, run:
+
+```bash
+./trim-trailing-spaces.sh --dry-run /mnt/gallery/albums   # preview
+./trim-trailing-spaces.sh /mnt/gallery/albums
+```
+
+Nothing is overwritten: names that would collide with an existing entry, or
+that consist only of spaces, are reported and skipped (exit status 1). Run
+`./update-thumbnails.sh` afterwards so renamed media get new thumbnails.
+
 ## Gallery behaviour
 
 The gallery starts with the album list. Select an album to view its media;

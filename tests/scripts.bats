@@ -257,3 +257,35 @@ EOF
   grep -qF -- '"/media/Album & Friends/*"' "$caddyfile"
   grep -qF -- '"/thumbnails/Album & Friends/*"' "$caddyfile"
 }
+
+@test "trim-trailing-spaces renames nested files and directories and skips conflicts" {
+  root="$test_root/trim"
+  mkdir -p -- "$root/Album  /Sub " "$root/Keep"
+  touch -- "$root/Album  /Sub /photo.jpg " "$root/Album  /clean.jpg" "$root/dup" "$root/dup " "$root/   "
+
+  run "$PROJECT_ROOT/trim-trailing-spaces.sh" --dry-run "$root"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Would rename'* ]]
+  [ -d "$root/Album  " ]
+
+  run "$PROJECT_ROOT/trim-trailing-spaces.sh" "$root"
+
+  [ "$status" -eq 1 ]
+  [ -f "$root/Album/Sub/photo.jpg" ]
+  [ -f "$root/Album/clean.jpg" ]
+  [ -d "$root/Keep" ]
+  [ -f "$root/dup" ]
+  [ -f "$root/dup " ]
+  [ -f "$root/   " ]
+  [[ "$output" == *'target already exists'* ]]
+  [[ "$output" == *'only of spaces'* ]]
+}
+
+@test "trim-trailing-spaces succeeds when nothing needs renaming" {
+  mkdir -p -- "$test_root/clean/a"
+
+  run "$PROJECT_ROOT/trim-trailing-spaces.sh" "$test_root/clean"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Renamed 0 item(s); skipped 0.'* ]]
+}
