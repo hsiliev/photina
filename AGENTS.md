@@ -86,6 +86,24 @@ Run `update-thumbnails.sh` before gallery generation. Gallery regeneration uses
 the per-album `METADATA_DIR/<album>/md5sums.txt` manifest to detect added,
 removed, or changed media.
 
+## Shared library layout
+
+- `lib/common.sh` holds `die`, `warn`, `photina_load_config` (sources the
+  config file and warns if it is not private), `photina_core_count`, and the
+  video helpers `photina_is_video` / `photina_needs_web_video`. Command scripts
+  source it before loading the config; `lib/thumbnails.sh` and
+  `lib/gallery/core.sh` source it themselves. Do not reintroduce per-script or
+  per-library copies of these helpers.
+- `lib/thumbnails.sh` exposes `thumbnail_list_media` (sorted images+videos for
+  one album), `thumbnail_media_source` (precomputed list or fresh scan),
+  `thumbnail_list_albums` (every album directory under each top-level album),
+  and `thumbnail_update_album` (thumbnails, metadata, checksums for one album).
+  The update, cleanup, and missing-check scripts all reuse them.
+  `thumbnail_make` builds one ImageMagick command for images and video frames;
+  only the input (`-auto-orient` for images) and medium quality differ.
+  Relative-path expansion stays inline (`${source#"$album_path"}`) because a
+  command substitution per file would fork in hot loops.
+
 ## Gallery generation architecture
 
 - `lib/gallery/generate.sh` validates configuration, invokes the gallery

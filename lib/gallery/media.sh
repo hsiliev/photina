@@ -110,8 +110,8 @@ gallery_render_media_item() {
   fi
 
   viewer_url=$medium_url
-  if gallery_is_video "$source"; then
-    if gallery_needs_web_video "$source"; then
+  if photina_is_video "$source"; then
+    if photina_needs_web_video "$source"; then
       web_video_path="${thumb_path%.webp}.web.mp4"
       web_video_url=$(gallery_thumbnail_url "$web_video_path" "$album_rel/$relative.web.mp4")
       viewer_url=$web_video_url

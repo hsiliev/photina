@@ -138,7 +138,7 @@ gallery_write_nested_fragments() {
   local album_dir=$1 album_rel=$2 thumbs_dir=$3 metadata_dir=$4 output_dir=$5 fragment_dir=$6
   local child child_name child_rel status=0 workers pid
   local -a pids=()
-  workers=$(gallery_core_count)
+  workers=$(photina_core_count)
   (( workers > 5 )) && workers=5
 
   while IFS= read -r -d '' child; do

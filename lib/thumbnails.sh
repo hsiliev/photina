@@ -1,31 +1,7 @@
 #!/usr/bin/env bash
 
-thumbnail_is_video() {
-  local extension=${1##*.}
-  extension=${extension,,}
-  case "$extension" in
-    mp4|m4v|mov|mkv|webm|avi|mpeg|mpg|ts|mts) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-thumbnail_needs_web_video() {
-  local extension=${1##*.}
-  extension=${extension,,}
-  case "$extension" in
-    mp4) return 1 ;;
-    *) thumbnail_is_video "$1" ;;
-  esac
-}
-
-thumbnail_core_count() {
-  local cores=1
-  if command -v nproc >/dev/null; then
-    cores=$(nproc)
-  fi
-  (( cores > 0 )) || cores=1
-  printf '%s\n' "$cores"
-}
+# shellcheck source=lib/common.sh
+source "${BASH_SOURCE[0]%/*}/common.sh"
 
 thumbnail_find_media() {
   local directory=$1 kind=$2 scope=${3:-direct}
@@ -48,6 +24,26 @@ thumbnail_find_media() {
   find "${find_args[@]}"
 }
 
+# Sorted NUL-delimited list of all media files directly inside an album.
+thumbnail_list_media() {
+  { thumbnail_find_media "$1" image direct; thumbnail_find_media "$1" video direct; } | sort -z
+}
+
+# NUL-delimited media list: the precomputed file when given, else a fresh scan.
+thumbnail_media_source() {
+  local album_path=$1 media_file=${2:-}
+  if [[ -n "$media_file" ]]; then cat -- "$media_file"; else thumbnail_list_media "$album_path"; fi
+}
+
+# NUL-delimited album directories (every directory below each top-level album).
+thumbnail_list_albums() {
+  local albums_dir=$1 root
+  for root in "$albums_dir"/*/; do
+    [[ -d "$root" ]] || continue
+    find -P "$root" -type d -print0 | sort -z
+  done
+}
+
 thumbnail_make() {
   local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4
   local display_name=${5:-${source##*/}} medium_size=$6 display_mode=$7
@@ -57,53 +53,46 @@ thumbnail_make() {
   local video_frame_tmp=${thumbnail%.webp}.video.jpg
   local web_video=${thumbnail%.webp}.web.mp4
   local web_video_tmp=${web_video%.mp4}.generating.mp4
-  local progress=$display_name
+
+  local input medium_quality=90
+  local -a input_args=()
 
   mkdir -p -- "$(dirname -- "$thumbnail")"
-  if thumbnail_is_video "$source"; then
+  if photina_is_video "$source"; then
     ffmpegthumbnailer -i "$source" -o "$video_frame_tmp" -s "$thumbnail_size" -q 8 -f >/dev/null 2>&1
-    if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
-      "$image_tool" "$video_frame_tmp" \
-        \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-        \( +clone -thumbnail "${medium_size}x" -strip -quality 86 -write "$medium_tmp" +delete \) \
-        null:
-    else
-      "$image_tool" "$video_frame_tmp" \
-        \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-          -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-          -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-        \( +clone -thumbnail "${medium_size}x${medium_size}>" \
-          -background white -alpha remove -alpha off -strip -quality 86 -write "$medium_tmp" +delete \) \
-        null:
-    fi
-    if thumbnail_needs_web_video "$source"; then
-      ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
-        >/dev/null 2>&1
-    fi
+    input=$video_frame_tmp
+    medium_quality=86
   else
-    if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
-      "$image_tool" "$source" -auto-orient \
-        \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-        \( +clone -thumbnail "${medium_size}x" -strip -quality 90 -write "$medium_tmp" +delete \) \
-        null:
-    else
-      "$image_tool" "$source" -auto-orient \
-        \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-          -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-          -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-        \( +clone -thumbnail "${medium_size}x${medium_size}>" \
-          -strip -quality 90 -write "$medium_tmp" +delete \) \
-        null:
-    fi
+    input=$source
+    input_args=(-auto-orient)
+  fi
+
+  if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
+    "$image_tool" "$input" "${input_args[@]}" \
+      \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+      \( +clone -thumbnail "${medium_size}x" -strip -quality "$medium_quality" -write "$medium_tmp" +delete \) \
+      null:
+  else
+    "$image_tool" "$input" "${input_args[@]}" \
+      \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
+        -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
+        -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
+      \( +clone -thumbnail "${medium_size}x${medium_size}>" \
+        -strip -quality "$medium_quality" -write "$medium_tmp" +delete \) \
+      null:
+  fi
+  if photina_is_video "$source" && photina_needs_web_video "$source"; then
+    ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
+      >/dev/null 2>&1
   fi
 
   mv -f -- "$thumbnail_tmp" "$thumbnail"
   mv -f -- "$medium_tmp" "$medium"
-  if thumbnail_needs_web_video "$source"; then
+  if photina_needs_web_video "$source"; then
     mv -f -- "$web_video_tmp" "$web_video"
   fi
   rm -f -- "$video_frame_tmp"
-  printf '\t%s\n' "$progress"
+  printf '\t%s\n' "$display_name"
 }
 
 thumbnail_process_item() {
@@ -114,7 +103,7 @@ thumbnail_process_item() {
   thumbnail="$thumbs_dir/$album_name/$relative.webp"
   medium_size=$7
   display_mode=$8
-  if thumbnail_needs_web_video "$source"; then
+  if photina_needs_web_video "$source"; then
     [[ ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" || ! -f "${thumbnail%.webp}.web.mp4" ]] || return 0
   else
     [[ ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" ]] || return 0
@@ -125,14 +114,14 @@ thumbnail_process_item() {
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9 media_file=${10:-}
-  export -f thumbnail_is_video thumbnail_needs_web_video thumbnail_make thumbnail_process_item
+  export -f photina_is_video photina_needs_web_video thumbnail_make thumbnail_process_item
 
   if [[ -n "$media_file" ]]; then
     cat -- "$media_file"
   elif [[ "$kind" == image ]]; then
     thumbnail_find_media "$album_path" image direct
   elif [[ "$kind" == all ]]; then
-    { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
+    thumbnail_list_media "$album_path"
   else
     thumbnail_find_media "$album_path" video direct
   fi |
@@ -155,9 +144,7 @@ thumbnail_batch_metadata() {
       sources+=("$source")
     fi
   done < <(
-    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
-      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
-    fi
+    thumbnail_media_source "$album_path" "$media_file"
   )
 
   if ((${#sources[@]} == 0)); then
@@ -205,9 +192,7 @@ thumbnail_generate_checksums() {
     relative_sources+=("$relative")
     checksum_count=$((checksum_count + 1))
   done < <(
-    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
-      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
-    fi
+    thumbnail_media_source "$album_path" "$media_file"
   )
 
   if ((${#relative_sources[@]})); then
@@ -244,9 +229,7 @@ thumbnail_checksums_need_update() {
     [[ -n ${manifest_sources["$relative"]+present} ]] || return 0
     current_count=$((current_count + 1))
   done < <(
-    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
-      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
-    fi
+    thumbnail_media_source "$album_path" "$media_file"
   )
 
   ((current_count == manifest_count)) || return 0
@@ -254,9 +237,7 @@ thumbnail_checksums_need_update() {
   while IFS= read -r -d '' source; do
     [[ "$source" -nt "$checksum_file" ]] && return 0
   done < <(
-    if [[ -n "$media_file" ]]; then cat -- "$media_file"; else
-      { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z
-    fi
+    thumbnail_media_source "$album_path" "$media_file"
   )
 
   return 1
@@ -299,7 +280,7 @@ thumbnail_add_expected_outputs() {
     thumbnail="$thumbs_dir/$album_name/$relative.webp"
     output["$thumbnail"]=1
     output["${thumbnail%.webp}_medium.webp"]=1
-    if thumbnail_needs_web_video "$source"; then
+    if photina_needs_web_video "$source"; then
       output["${thumbnail%.webp}.web.mp4"]=1
     fi
   done <"$media_file"
@@ -335,12 +316,25 @@ thumbnail_cleanup_stale_metadata() {
   find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print -delete
 }
 
+# Generate thumbnails, metadata, and checksums for one album. Returns 1 on any failure.
+thumbnail_update_album() {
+  local album_path=$1 album_name=$2 thumbs_dir=$3 metadata_dir=$4 thumbnail_size=$5 medium_size=$6
+  local image_tool=$7 parallel_jobs=$8 display_mode=$9 media_file=${10}
+
+  thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" \
+    "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file" || return 1
+  thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" || return 1
+  if thumbnail_checksums_need_update "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
+    thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" "$media_file" || return 1
+  else
+    printf '\tChecksums: unchanged for %s (skipped)\n' "$album_name"
+  fi
+}
+
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
   local image_tool parallel_jobs thumbnail_failed=0
-  local root_album_path album_path album_name source relative media_file
-  local metadata stale_metadata_relative
-  local cleanup_removed
+  local album_path album_name media_file
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
 
   if command -v magick >/dev/null; then
@@ -350,53 +344,28 @@ update_thumbnails() {
   else
     die 'ImageMagick (magick or convert) is required'
   fi
-  parallel_jobs=$(thumbnail_core_count)
+  parallel_jobs=$(photina_core_count)
 
   echo "Updating thumbnails in $thumbs_dir"
   echo "Updating metadata in $metadata_dir"
   echo "Image tool: $image_tool"
   echo "Thumbnail workers: $parallel_jobs"
-  mkdir -p -- "$thumbs_dir"
-  mkdir -p -- "$metadata_dir"
+  mkdir -p -- "$thumbs_dir" "$metadata_dir"
 
-  shopt -s nullglob
-  for root_album_path in "$albums_dir"/*/; do
-    [[ -d "$root_album_path" ]] || continue
-    while IFS= read -r -d '' album_path; do
-      album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
-      media_file=$(mktemp)
-      if ! { thumbnail_find_media "$album_path" image direct; thumbnail_find_media "$album_path" video direct; } | sort -z >"$media_file"; then
-        rm -f -- "$media_file"
-        thumbnail_failed=1
-        continue
-      fi
-      if [[ ! -s "$media_file" ]]; then
-        rm -f -- "$media_file"
-        continue
-      fi
+  while IFS= read -r -d '' album_path; do
+    album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
+    media_file=$(mktemp)
+    if ! thumbnail_list_media "$album_path" >"$media_file"; then
+      thumbnail_failed=1
+    elif [[ -s "$media_file" ]]; then
       thumbnail_add_expected_outputs "$album_path" "$album_name" "$thumbs_dir" "$media_file" expected_thumbnails
-      while IFS= read -r -d '' source; do
-        relative=${source#"$album_path"}; relative=${relative#/}
-        expected_metadata["$metadata_dir/$album_name/$relative.json"]=1
-      done <"$media_file"
       thumbnail_add_expected_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file" expected_metadata expected_checksums
       echo "Scanning album: $album_name"
-      if thumbnail_batch_album "$album_path" "$album_name" "$thumbs_dir" "$thumbnail_size" "$medium_size" "$image_tool" "$parallel_jobs" all "$display_mode" "$media_file"; then
-        if thumbnail_batch_metadata "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
-          if thumbnail_checksums_need_update "$album_path" "$album_name" "$metadata_dir" "$media_file"; then
-            thumbnail_generate_checksums "$album_path" "$album_name" "$metadata_dir" "$media_file" || thumbnail_failed=1
-          else
-            printf '\tChecksums: unchanged for %s (skipped)\n' "$album_name"
-          fi
-        else
-          thumbnail_failed=1
-        fi
-      else
-        thumbnail_failed=1
-      fi
-      rm -f -- "$media_file"
-    done < <(find -P "$root_album_path" -type d -print0 | sort -z)
-  done
+      thumbnail_update_album "$album_path" "$album_name" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" \
+        "$medium_size" "$image_tool" "$parallel_jobs" "$display_mode" "$media_file" || thumbnail_failed=1
+    fi
+    rm -f -- "$media_file"
+  done < <(thumbnail_list_albums "$albums_dir")
   thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
 
   thumbnail_cleanup_stale_metadata "$metadata_dir" expected_metadata expected_checksums

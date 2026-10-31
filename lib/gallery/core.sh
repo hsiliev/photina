@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# shellcheck source=lib/common.sh
+source "${BASH_SOURCE[0]%/*}/../common.sh"
+
 gallery_html_escape() {
   local value=$1
   value=${value//&/&amp;}; value=${value//</&lt;}; value=${value//>/&gt;}
@@ -16,15 +19,6 @@ gallery_url_escape_path() {
 
 gallery_file_version() {
   stat -c '%Y' -- "$1" 2>/dev/null || printf '0'
-}
-
-gallery_core_count() {
-  local cores=1
-  if command -v nproc >/dev/null; then
-    cores=$(nproc)
-  fi
-  (( cores > 0 )) || cores=1
-  printf '%s\n' "$cores"
 }
 
 gallery_thumbnail_url() {
@@ -66,24 +60,6 @@ gallery_metadata_location() {
   local latitude=$1 longitude=$2
   [[ -n "$latitude" && -n "$longitude" ]] || return 0
   printf '%s, %s' "$latitude" "$longitude"
-}
-
-gallery_is_video() {
-  local extension=${1##*.}
-  extension=${extension,,}
-  case "$extension" in
-    mp4|m4v|mov|mkv|webm|avi|mpeg|mpg|ts|mts) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-gallery_needs_web_video() {
-  local extension=${1##*.}
-  extension=${extension,,}
-  case "$extension" in
-    mp4) return 1 ;;
-    *) gallery_is_video "$1" ;;
-  esac
 }
 
 gallery_print_template() {
