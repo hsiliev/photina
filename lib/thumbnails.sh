@@ -275,20 +275,47 @@ thumbnail_checksums_need_update() {
   return 1
 }
 
+# Stale cleanup must never trust the album scan alone: a flaky network mount
+# can return a short or empty listing, which would make every cached file look
+# stale. A file is therefore removed only when the original it belongs to is
+# verified missing on disk, and nothing is removed when the albums directory
+# looks empty (for example an unmounted share).
+thumbnail_albums_dir_is_populated() {
+  local albums_dir=$1
+  [[ -n "$(find -P "$albums_dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] && return 0
+  printf 'error: albums directory %s is empty or unreadable (unmounted?); skipping cleanup.\n' "$albums_dir" >&2
+  return 1
+}
+
+# Original media path (relative to the albums directory) of a generated
+# thumbnail file: x.jpg.webp, x.jpg_medium.webp, and x.avi.web.mp4 all belong
+# to x.jpg / x.jpg / x.avi. Originals are usually not .webp files.
+thumbnail_original_relative() {
+  local relative=$1 original
+  original=${relative%.web.mp4}
+  [[ "$original" == "$relative" ]] && original=${original%_medium.webp}
+  [[ "$original" == "$relative" ]] && original=${original%.webp}
+  printf '%s' "$original"
+}
+
 thumbnail_cleanup_stale() {
   local albums_dir=$1 thumbs_dir=$2 expected_name=$3
-  local thumbnail stale_relative source_path reason
+  local thumbnail stale_relative source_path reason kept=0
   local -n expected="$expected_name"
 
   [[ -d "$thumbs_dir" ]] || return 0
+  thumbnail_albums_dir_is_populated "$albums_dir" || return 1
 
   printf '\tChecking for stale thumbnail files in %s ...\n' "$thumbs_dir"
   while IFS= read -r -d '' thumbnail; do
     [[ -n ${expected["$thumbnail"]+present} ]] && continue
     stale_relative=${thumbnail#"$thumbs_dir"/}
-    source_path=${stale_relative%.web.mp4}
-    [[ "$source_path" == "$stale_relative" ]] && source_path=${source_path%_medium.webp}
-    [[ "$source_path" == "$stale_relative" ]] && source_path=${source_path%.webp}
+    source_path=$(thumbnail_original_relative "$stale_relative")
+    if [[ -e "$albums_dir/$source_path" || -L "$albums_dir/$source_path" ]]; then
+      # The original exists, so the scan missed it: keep the thumbnail.
+      kept=$((kept + 1))
+      continue
+    fi
     if [[ -d "$albums_dir/${source_path%/*}" ]]; then
       reason='no such original image'
     else
@@ -297,6 +324,7 @@ thumbnail_cleanup_stale() {
     printf '\tRemoving stale thumbnail: %s (%s)\n' "$stale_relative" "$reason"
     rm -f -- "$thumbnail"
   done < <(find -P "$thumbs_dir" -type f -print0)
+  (( kept == 0 )) || printf '\tKept %d thumbnail(s) the album scan did not list because their originals exist\n' "$kept"
 
   printf '\tRemoving empty thumbnail directories in %s ...\n' "$thumbs_dir"
   find -P "$thumbs_dir" -mindepth 1 -depth -type d -empty -print -delete
@@ -333,18 +361,28 @@ thumbnail_add_expected_metadata() {
 }
 
 thumbnail_cleanup_stale_metadata() {
-  local metadata_dir=$1 metadata_name=$2 checksums_name=$3
-  local metadata stale_relative
+  local albums_dir=$1 metadata_dir=$2 metadata_name=$3 checksums_name=$4
+  local metadata stale_relative original kept=0
   local -n metadata_expected="$metadata_name" checksums_expected="$checksums_name"
 
   [[ -d "$metadata_dir" ]] || return 0
+  thumbnail_albums_dir_is_populated "$albums_dir" || return 1
+
   printf '\tChecking for stale metadata files in %s ...\n' "$metadata_dir"
   while IFS= read -r -d '' metadata; do
     [[ -n ${metadata_expected["$metadata"]+present} || -n ${checksums_expected["$metadata"]+present} ]] && continue
     stale_relative=${metadata#"$metadata_dir"/}
+    if [[ "$stale_relative" == *.json && "$stale_relative" != *.generating.json ]]; then
+      original=${stale_relative%.json}
+      if [[ -e "$albums_dir/$original" || -L "$albums_dir/$original" ]]; then
+        kept=$((kept + 1))
+        continue
+      fi
+    fi
     printf '\tRemoving stale metadata: %s\n' "$stale_relative"
     rm -f -- "$metadata"
   done < <(find -P "$metadata_dir" -type f -print0)
+  (( kept == 0 )) || printf '\tKept %d metadata file(s) the album scan did not list because their originals exist\n' "$kept"
 
   printf '\tRemoving empty metadata directories in %s ...\n' "$metadata_dir"
   find -P "$metadata_dir" -mindepth 1 -depth -type d -empty -print -delete
@@ -367,7 +405,7 @@ thumbnail_update_album() {
 
 update_thumbnails() {
   local albums_dir=$1 thumbs_dir=$2 metadata_dir=$3 thumbnail_size=$4 medium_size=$5 display_mode=$6
-  local image_tool parallel_jobs thumbnail_failed=0
+  local image_tool parallel_jobs thumbnail_failed=0 cleanup_failed=0
   local album_path album_name media_file
   # shellcheck disable=SC2034 # passed by name to functions that use namerefs
   declare -A expected_thumbnails=() expected_metadata=() expected_checksums=()
@@ -401,11 +439,17 @@ update_thumbnails() {
     fi
     rm -f -- "$media_file"
   done < <(thumbnail_list_albums "$albums_dir")
-  thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
-
-  thumbnail_cleanup_stale_metadata "$metadata_dir" expected_metadata expected_checksums
+  # Never delete based on an incomplete scan: expected_* only list albums
+  # whose media list was read successfully.
+  if (( thumbnail_failed != 0 )); then
+    echo 'Skipping stale thumbnail and metadata cleanup because some albums failed'
+  else
+    thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails || cleanup_failed=1
+    thumbnail_cleanup_stale_metadata "$albums_dir" "$metadata_dir" expected_metadata expected_checksums || cleanup_failed=1
+  fi
 
   if (( thumbnail_failed != 0 )); then die 'one or more thumbnails could not be generated'; fi
+  if (( cleanup_failed != 0 )); then die 'stale file cleanup was skipped because the albums directory looks empty'; fi
 
   echo 'Thumbnail update complete'
 }

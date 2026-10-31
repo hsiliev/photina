@@ -68,6 +68,18 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   batch continues (the file stays pending and is retried next run). A failed
   web-video conversion only warns; thumbnails are still published. `warn` is
   exported to the `xargs` workers for this.
+  Stale cleanup is automatic but never trusts the album scan alone, because
+  a flaky CIFS mount once returned incomplete listings and a run deleted a
+  large part of the cache. A thumbnail not in the scanned set is removed only
+  when its original is verified missing on disk: `thumbnail_original_relative`
+  strips `.web.mp4`, `_medium.webp`, or `.webp` (thumbnails are named
+  `<original name>.webp`, e.g. `IMG_1.JPG.webp`; originals are rarely `.webp`
+  themselves, though `pic.webp` -> `pic.webp.webp` also works). If the
+  original exists, the file is kept and counted in a "Kept N ..." line.
+  Metadata `.json` files get the same check. Cleanup is skipped entirely when
+  any album failed to scan, and refused when the albums directory is empty
+  (`thumbnail_albums_dir_is_populated`, e.g. an unmounted share). There is no
+  override flag and no percentage limit. Do not remove these checks.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
   thumbnail, medium, and web-video outputs. It exits with status 1 if any are
   missing; it does not modify the thumbnail tree.
@@ -153,11 +165,17 @@ serving. `fix-flickr-names.sh` additionally needs `awk` and `python3`.
   traversal; bash classifies them with `has_forbidden_character`, so keep the
   two lists in sync. Names are checked after trimming. Exit status is 1 when
   anything was skipped or forbidden. It never overwrites and does not read the
-  Photina config. Names the SMB server could not represent are exposed by the
-  mount as unopenable aliases such as `2KT24Y~W`; their real names are not
-  visible through the mount, so this check cannot find them (rename them on
-  the server over SFTP/SSH). Rerun `update-thumbnails.sh` afterwards, since
-  renamed media get new thumbnails and the old ones become stale.
+  Photina config. Names the SMB server cannot represent (trailing space or
+  dot, illegal characters) are exposed by a CIFS mount only as Samba-mangled
+  aliases such as `2KT24Y~W`, which cannot be opened; the real name never
+  reaches the client, so it cannot be shown or renamed through that mount.
+  The script reports such entries as `mangled:` (pattern
+  `XXXXXX~Y[.ext]` with `[A-Z0-9]`, and only if the path is not accessible, so
+  a legitimate lookalike is not flagged) and exits 1. To actually rename
+  them, run the script against an FTP/SFTP view (for example the gvfs mount
+  of the Storage Box) or the server's own filesystem, where the real names
+  are visible. Rerun `update-thumbnails.sh` afterwards, since renamed media
+  get new thumbnails and the old ones become stale.
 - `./compare-dirs.sh DIRECTORY1 DIRECTORY2` compares the filenames of regular
   files directly inside two directories and reports files missing from either
   side.
@@ -173,6 +191,30 @@ The normal update sequence is:
 Run `update-thumbnails.sh` before gallery generation. Gallery regeneration uses
 the per-album `METADATA_DIR/<album>/md5sums.txt` manifest to detect added,
 removed, or changed media.
+
+## Locking
+
+`photina_acquire_lock KIND TARGET` (in `lib/common.sh`) takes a non-blocking
+`flock` on fd 9 for the life of the script and writes the holder's PID and
+script name into the lock file. Two kinds exist:
+
+- `cache` (`photina_acquire_cache_lock THUMBNAILS_DIR`): `update-thumbnails.sh`,
+  `cleanup-thumbnails-and-metadata.sh`, `delete-all-...` and `delete-album-...`
+  so they never run concurrently on the same cache (two `update-thumbnails.sh`
+  runs were once seen at the same time on the server).
+- `gallery` (`photina_acquire_gallery_lock OUTPUT_DIR`): gallery generation
+  (`lib/gallery/generate.sh`, so admin, guest, and the shared Caddyfile are
+  serialized), `delete-*-gallery.sh` (`lib/gallery/delete.sh`), and
+  `update-caddy.sh`.
+
+Lock files are `${TMPDIR:-/tmp}/photina-<kind>-<cksum of the directory>.lock`,
+outside the protected directories so cleanup and deletion never see them.
+Requires `flock` (util-linux). A second job prints a warning with the lock
+file path and holder, and the command `rm -- '<lock file>'` to override it
+manually when no job is really running, then exits with `another Photina job
+is already using the <kind> ...`. flock locks vanish when the holder exits, so
+a leftover file never blocks by itself; deleting the file while a job runs
+lets a second job start. Tests set `TMPDIR` to keep locks isolated.
 
 ## Shared library layout
 

@@ -74,6 +74,7 @@ check_caddy_access() {
 
 # shellcheck source=lib/thumbnails.sh
 source "$script_dir/lib/thumbnails.sh"
+photina_acquire_cache_lock "$thumbs_dir"
 check_utf8_support
 check_caddy_access
 update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$medium_size" "$display_mode"

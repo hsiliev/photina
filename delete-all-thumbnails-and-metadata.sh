@@ -11,6 +11,7 @@ source "$script_dir/lib/common.sh"
 photina_load_config
 thumbnails_dir=$(realpath -m -- "${THUMBNAILS_DIR:-/mnt/gallery/thumbnails}")
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
+photina_acquire_cache_lock "$thumbnails_dir"
 [[ "$thumbnails_dir" != / && "$metadata_dir" != / ]] || die 'refusing to delete the filesystem root'
 
 rm -rf -- "$thumbnails_dir" "$metadata_dir"

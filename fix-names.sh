@@ -14,13 +14,18 @@ Make names below DIRECTORY safe for SMB/CIFS shares:
 
   * rename files and directories whose names end with spaces or dots,
     removing the trailing spaces and dots (DIRECTORY itself is never renamed);
+  * report entries that an SMB/CIFS server exposed under a mangled 8.3 alias
+    such as 2KT24Y~W and that cannot be opened. The real name (usually a
+    trailing space or dot) is never delivered to the client, so it cannot
+    be shown or fixed through that mount; run this script against an FTP or
+    SFTP view of the same directory, or on the server's own filesystem;
   * report (without renaming) names containing characters SMB cannot store:
     \ : * ? " < > |, control characters, and the private-use characters
     U+F020-U+F029 that a mapposix CIFS mount shows in place of those.
 
 With -n/--dry-run, only report what would be renamed.
-Exit status: 0 when everything was fixed, 1 when entries were skipped or
-names with forbidden characters were found.
+Exit status: 0 when everything was fixed, 1 when entries were skipped,
+mangled aliases were found, or names with forbidden characters were found.
 USAGE
 }
 
@@ -50,10 +55,20 @@ has_forbidden_character() {
   return 1
 }
 
+# Samba's default name mangling turns names it cannot represent into
+# "XXXXXX~Y" (optionally with a short extension). Only an alias that cannot
+# be opened is reported, so a legitimate name of that shape is never flagged.
+is_unopenable_mangled_name() {
+  local path=$1 name=${1##*/}
+  [[ "$name" =~ ^[A-Z0-9]{6}~[A-Z0-9](\.[A-Za-z0-9]{1,3})?$ ]] || return 1
+  [[ ! -e "$path" && ! -L "$path" ]]
+}
+
 # find -depth lists children before their parents, so renaming a directory
 # never invalidates the paths of entries still to be processed. Names are
 # prefiltered by find; bash classifies the few candidates.
-find_args=(-P "$directory" -mindepth 1 -depth '(' -name '* ' -o -name '*.' -o -name '*[\\:*?"<>|]*' -o -name '*[[:cntrl:]]*')
+find_args=(-P "$directory" -mindepth 1 -depth '(' -name '* ' -o -name '*.' -o -name '*[\\:*?"<>|]*' -o -name '*[[:cntrl:]]*'
+  -o -name '??????~?' -o -name '??????~?.*')
 for char in "${sfm_chars[@]}"; do
   find_args+=(-o -name "*$char*")
 done
@@ -65,13 +80,18 @@ mapfile -d '' -t paths < <(find "${find_args[@]}")
 renamed=0
 skipped=0
 forbidden=()
+mangled=()
 for path in "${paths[@]}"; do
   parent=${path%/*}
   name=${path##*/}
   # Strip all trailing spaces and dots.
   trimmed=${name%"${name##*[! .]}"}
   if [[ "$trimmed" == "$name" ]]; then
-    has_forbidden_character "$name" && forbidden+=("$path")
+    if is_unopenable_mangled_name "$path"; then
+      mangled+=("$path")
+    elif has_forbidden_character "$name"; then
+      forbidden+=("$path")
+    fi
     continue
   fi
   if [[ -z "$trimmed" ]]; then
@@ -95,14 +115,19 @@ for path in "${paths[@]}"; do
   has_forbidden_character "$trimmed" && forbidden+=("$target")
 done
 
+if ((${#mangled[@]})); then
+  warn "${#mangled[@]} SMB-mangled alias(es) cannot be opened; the real name probably ends with a space or dot. Rename them via FTP/SFTP or on the server:"
+  printf '  mangled: %s\n' "${mangled[@]}" >&2
+fi
+
 if ((${#forbidden[@]})); then
   warn "${#forbidden[@]} name(s) contain characters SMB cannot store; rename them manually:"
   printf '  forbidden: %s\n' "${forbidden[@]}" >&2
 fi
 
 if (( dry_run )); then
-  printf 'Would rename %d item(s); skipped %d; forbidden %d.\n' "$renamed" "$skipped" "${#forbidden[@]}"
+  printf 'Would rename %d item(s); skipped %d; forbidden %d; mangled %d.\n' "$renamed" "$skipped" "${#forbidden[@]}" "${#mangled[@]}"
 else
-  printf 'Renamed %d item(s); skipped %d; forbidden %d.\n' "$renamed" "$skipped" "${#forbidden[@]}"
+  printf 'Renamed %d item(s); skipped %d; forbidden %d; mangled %d.\n' "$renamed" "$skipped" "${#forbidden[@]}" "${#mangled[@]}"
 fi
-(( skipped == 0 && ${#forbidden[@]} == 0 )) || exit 1
+(( skipped == 0 && ${#forbidden[@]} == 0 && ${#mangled[@]} == 0 )) || exit 1

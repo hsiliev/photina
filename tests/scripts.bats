@@ -287,7 +287,7 @@ EOF
   run "$PROJECT_ROOT/fix-names.sh" "$test_root/clean"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Renamed 0 item(s); skipped 0; forbidden 0.'* ]]
+  [[ "$output" == *'Renamed 0 item(s); skipped 0; forbidden 0; mangled 0.'* ]]
 }
 
 @test "fix-names also trims trailing dots" {
@@ -333,4 +333,152 @@ EOF
   [[ "$output" == *'skipping unreadable video: empty.avi'* ]]
   [[ "$output" != *'insufficient image data'* && "$output" != *'cannot stat'* ]]
   [ -z "$(ls -A -- "$test_root/thumbs")" ]
+}
+
+@test "fix-names reports unopenable SMB-mangled aliases but not accessible lookalikes" {
+  root="$test_root/mangled"
+  shim="$test_root/shim"
+  mkdir -p -- "$root/Album" "$shim"
+  touch -- "$root/Album/ABC123~4"
+  real_find=$(command -v find)
+  # Simulate the CIFS listing: find also yields an alias that cannot be opened.
+  printf '#!/usr/bin/env bash\n%s "$@"\nprintf "%%s\\0" "%s/Album/2KT24Y~W"\n' \
+    "$real_find" "$root" >"$shim/find"
+  chmod +x -- "$shim/find"
+
+  PATH="$shim:$PATH" run "$PROJECT_ROOT/fix-names.sh" "$root"
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"mangled: $root/Album/2KT24Y~W"* ]]
+  [[ "$output" != *"mangled: $root/Album/ABC123~4"* ]]
+  [[ "$output" == *'mangled 1.'* ]]
+}
+
+@test "cleanup keeps thumbnails whose originals exist even if the scan missed them" {
+  albums="$test_root/albums"; thumbs="$test_root/thumbs"
+  mkdir -p -- "$albums/Album" "$thumbs/Album"
+  for i in $(seq 150); do
+    touch -- "$albums/Album/IMG_$i.JPG"
+    printf x >"$thumbs/Album/IMG_$i.JPG.webp"
+    printf x >"$thumbs/Album/IMG_${i}.JPG_medium.webp"
+  done
+  touch -- "$albums/Album/clip.avi" "$albums/Album/pic.webp"
+  printf x >"$thumbs/Album/clip.avi.webp"; printf x >"$thumbs/Album/clip.avi.web.mp4"
+  printf x >"$thumbs/Album/pic.webp.webp"; printf x >"$thumbs/Album/pic.webp_medium.webp"
+  declare -A nothing_expected=()
+
+  run thumbnail_cleanup_stale "$albums" "$thumbs" nothing_expected
+
+  [ "$status" -eq 0 ]
+  [ "$(find "$thumbs" -type f | wc -l)" -eq 304 ]
+  [[ "$output" == *'Kept 304 thumbnail(s)'* ]]
+  [[ "$output" != *'Removing stale thumbnail'* ]]
+}
+
+@test "cleanup automatically removes thumbnails whose originals are really gone" {
+  albums="$test_root/albums"; thumbs="$test_root/thumbs"
+  mkdir -p -- "$albums/Album" "$thumbs/Album" "$thumbs/Gone"
+  touch -- "$albums/Album/keep.JPG"
+  for i in $(seq 150); do
+    printf x >"$thumbs/Album/old$i.JPG.webp"
+    printf x >"$thumbs/Gone/g$i.png_medium.webp"
+  done
+  printf x >"$thumbs/Album/keep.JPG.webp"
+  printf x >"$thumbs/Album/oldclip.avi.web.mp4"
+  declare -A expected_files=()
+  expected_files["$thumbs/Album/keep.JPG.webp"]=1
+
+  run thumbnail_cleanup_stale "$albums" "$thumbs" expected_files
+
+  [ "$status" -eq 0 ]
+  [ -e "$thumbs/Album/keep.JPG.webp" ]
+  [ "$(find "$thumbs" -type f | wc -l)" -eq 1 ]
+  [[ "$output" == *'old1.JPG.webp (no such original image)'* ]]
+  [[ "$output" == *'Gone/g1.png_medium.webp (no such original album)'* ]]
+  [[ "$output" == *'oldclip.avi.web.mp4 (no such original image)'* ]]
+}
+
+@test "cleanup refuses to run when the albums directory is empty" {
+  albums="$test_root/albums"; thumbs="$test_root/thumbs"
+  mkdir -p -- "$albums" "$thumbs/Album"
+  printf x >"$thumbs/Album/a.jpg.webp"
+  declare -A nothing_expected=()
+
+  run thumbnail_cleanup_stale "$albums" "$thumbs" nothing_expected
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'is empty or unreadable'* ]]
+  [ -e "$thumbs/Album/a.jpg.webp" ]
+}
+
+@test "cleanup keeps metadata of existing originals and removes metadata of missing ones" {
+  albums="$test_root/albums"; metadata="$test_root/metadata"
+  mkdir -p -- "$albums/Album" "$metadata/Album"
+  touch -- "$albums/Album/here.jpg"
+  printf x >"$metadata/Album/here.jpg.json"
+  printf x >"$metadata/Album/gone.jpg.json"
+  declare -A meta_expected=() sums_expected=()
+
+  run thumbnail_cleanup_stale_metadata "$albums" "$metadata" meta_expected sums_expected
+
+  [ "$status" -eq 0 ]
+  [ -e "$metadata/Album/here.jpg.json" ]
+  [ ! -e "$metadata/Album/gone.jpg.json" ]
+}
+
+@test "update_thumbnails skips cleanup when an album scan fails" {
+  albums="$test_root/albums"; thumbnails="$test_root/thumbnails"; metadata="$test_root/metadata"
+  mkdir -p -- "$albums/Album" "$thumbnails/Album" "$metadata"
+  touch -- "$albums/Album/keep.jpg"
+  printf x >"$thumbnails/Album/gone.jpg.webp"
+  thumbnail_list_media() { return 1; }
+
+  run update_thumbnails "$albums" "$thumbnails" "$metadata" 250 1600 cascading
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'Skipping stale thumbnail and metadata cleanup'* ]]
+  [ -e "$thumbnails/Album/gone.jpg.webp" ]
+}
+
+@test "a held lock produces a warning naming the lock file and how to remove it" {
+  thumbnails="$test_root/thumbnails"; config="$test_root/photina.conf"
+  mkdir -p -- "$test_root/albums/A" "$thumbnails"
+  touch -- "$test_root/albums/A/p.jpg"
+  printf "ALBUMS_DIR='$test_root/albums'\nTHUMBNAILS_DIR='$thumbnails'\nMETADATA_DIR='$test_root/metadata'\n" >"$config"
+  chmod 600 -- "$config"
+  export TMPDIR="$test_root"
+  lock=$(photina_lock_path cache "$thumbnails")
+  exec 8>>"$lock"; flock -n 8; printf '4242 other-job.sh\n' >"$lock"
+
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/cleanup-thumbnails-and-metadata.sh"
+
+  exec 8>&-
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"warning: lock file $lock is held by: 4242 other-job.sh"* ]]
+  [[ "$output" == *"delete the lock file and rerun: rm -- '$lock'"* ]]
+}
+
+@test "gallery generation and deletion take the gallery lock" {
+  output_root="$test_root/dist"; config="$test_root/photina.conf"
+  mkdir -p -- "$output_root/admin" "$test_root/albums/A"
+  touch -- "$output_root/admin/index.html"
+  printf "ALBUMS_DIR='$test_root/albums'\nTHUMBNAILS_DIR='$test_root/thumbs'\nMETADATA_DIR='$test_root/metadata'\nOUTPUT_DIR='$output_root'\nADMIN_PASSWORD=a\nGUEST_PASSWORD=g\n" >"$config"
+  chmod 600 -- "$config"
+  export TMPDIR="$test_root"
+  exec 8>>"$(photina_lock_path gallery "$output_root")"
+  flock -n 8
+
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/delete-admin-gallery.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'another Photina job is already using the gallery'* ]]
+  [ -e "$output_root/admin/index.html" ]
+
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/generate-admin-gallery.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'another Photina job is already using the gallery'* ]]
+
+  exec 8>&-
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/delete-admin-gallery.sh"
+  [ "$status" -eq 0 ]
+  [ ! -e "$output_root/admin" ]
 }

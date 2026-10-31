@@ -35,6 +35,7 @@ caddy_port=${PORT:-443}
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
 output_dir=$(realpath -m -- "$OUTPUT_DIR")
 thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
+photina_acquire_gallery_lock "$output_dir"
 admin_output_dir="$output_dir/admin"
 guest_output_dir="$output_dir/guest"
 

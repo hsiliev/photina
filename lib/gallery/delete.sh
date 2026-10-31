@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# shellcheck source=lib/common.sh
+source "${BASH_SOURCE[0]%/*}/../common.sh"
+
 gallery_delete_output() {
   local config_file=$1 gallery_target=$2
   local output_dir delete_dir
@@ -16,6 +19,7 @@ gallery_delete_output() {
     return 1
   }
   delete_dir="$output_dir/$gallery_target"
+  photina_acquire_gallery_lock "$output_dir"
 
   if [[ -e "$delete_dir" ]]; then
     rm -rf -- "$delete_dir"

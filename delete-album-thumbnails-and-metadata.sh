@@ -12,6 +12,7 @@ album_name=$1
 
 photina_load_config
 thumbnails_dir=$(realpath -m -- "${THUMBNAILS_DIR:-/mnt/gallery/thumbnails}")
+photina_acquire_cache_lock "$thumbnails_dir"
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 thumbnail_target=$(realpath -m -- "$thumbnails_dir/$album_name")
 metadata_target=$(realpath -m -- "$metadata_dir/$album_name")

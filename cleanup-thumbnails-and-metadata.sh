@@ -21,6 +21,8 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
 
+photina_acquire_cache_lock "$thumbs_dir"
+
 # shellcheck disable=SC2034 # passed by name to functions that use namerefs
 declare -A expected_thumbnails=()
 # shellcheck disable=SC2034 # passed by name to functions that use namerefs
@@ -41,4 +43,4 @@ done < <(thumbnail_list_albums "$albums_dir")
 
 echo "Cleaning redundant thumbnails and metadata in $thumbs_dir ..."
 thumbnail_cleanup_stale "$albums_dir" "$thumbs_dir" expected_thumbnails
-thumbnail_cleanup_stale_metadata "$metadata_dir" expected_metadata expected_checksums
+thumbnail_cleanup_stale_metadata "$albums_dir" "$metadata_dir" expected_metadata expected_checksums

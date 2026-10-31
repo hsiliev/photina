@@ -170,6 +170,15 @@ processes images directly inside the supplied directory, leaves images without
 a usable year in place, and overwrites same-named files already in a year
 directory.
 
+## Stale cache cleanup
+
+`update-thumbnails.sh` and `cleanup-thumbnails-and-metadata.sh` remove cache
+files that no longer match an album. A cache file is removed only after
+checking that its original file (for example `IMG_1.JPG` for
+`IMG_1.JPG.webp`) is really missing, so an incomplete listing of a network
+mount cannot delete the cache of existing photos. Cleanup is skipped when an
+album failed to scan or the albums directory is empty.
+
 ## Fixing names for SMB shares
 
 To strip trailing spaces and dots from file and directory names below a
@@ -184,10 +193,13 @@ Nothing is overwritten: names that would collide with an existing entry, or
 that consist only of spaces and dots, are reported and skipped. Names with
 characters SMB cannot hold (`\ : * ? " < > |` and control characters) are
 listed as `forbidden` but not renamed. The exit status is 1 if anything was
-skipped or forbidden. A name the server could not represent appears on an SMB
-mount as an unopenable alias such as `2KT24Y~W`; its real name is invisible
-there, so rename it on the server (for example over SFTP). Run
-`./update-thumbnails.sh` afterwards so renamed media get new thumbnails.
+skipped, forbidden or mangled. A name the server cannot represent (for
+example one ending in a space) appears on an SMB mount only as an unopenable
+alias such as `2KT24Y~W`. The script lists these as `mangled`, but the real
+name is invisible through that mount: run `fix-names.sh` against an FTP/SFTP
+view of the same directory, or on the server's own filesystem, to rename
+them. Run `./update-thumbnails.sh` afterwards so renamed media get new
+thumbnails.
 
 ## Gallery behaviour
 
