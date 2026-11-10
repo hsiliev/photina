@@ -23,21 +23,37 @@ thumbnail_expected_files_to() {
 
 # Older versions named the viewer image <name>_medium.webp; it is now
 # <name>_me.webp. Rename instead of regenerating. A leftover _medium file whose
-# _me twin already exists is redundant and removed.
+# _me twin already exists is redundant and removed. Walking a large (network)
+# cache is slow, so the scan announces itself and reports one line per
+# directory that had files renamed (find does not list a directory's files
+# contiguously, so counts are collected first and printed sorted).
 thumbnail_migrate_legacy_medium() {
-  local thumbs_dir=$1 legacy target renamed=0
+  local thumbs_dir=$1 legacy target directory
+  local -A renamed_by_directory=()
+  local -a directories=()
   [[ -d "$thumbs_dir" ]] || return 0
+  printf 'Checking for legacy _medium.webp files in %s ...\n' "$thumbs_dir"
   while IFS= read -r -d '' legacy; do
     target=${legacy%_medium.webp}_me.webp
     if [[ -e "$target" ]]; then
       rm -f -- "$legacy"
     elif mv -- "$legacy" "$target"; then
-      renamed=$((renamed + 1))
+      directory=${legacy%/*}
+      renamed_by_directory["$directory"]=$((${renamed_by_directory["$directory"]:-0} + 1))
     else
       warn "could not rename $legacy"
     fi
   done < <(find -P "$thumbs_dir" -type f -name '*_medium.webp' -print0)
-  (( renamed == 0 )) || printf 'Renamed %d _medium.webp file(s) to _me.webp\n' "$renamed"
+
+  if (( ${#renamed_by_directory[@]} == 0 )); then
+    printf 'No legacy _medium.webp files to rename\n'
+    return 0
+  fi
+  mapfile -d '' -t directories < <(printf '%s\0' "${!renamed_by_directory[@]}" | sort -z)
+  for directory in "${directories[@]}"; do
+    printf 'Renamed %d _medium.webp file(s) to _me.webp in %s\n' \
+      "${renamed_by_directory["$directory"]}" "${directory#"$thumbs_dir"/}"
+  done
 }
 
 # True when the display mode keeps each photo's aspect ratio (fixed width,

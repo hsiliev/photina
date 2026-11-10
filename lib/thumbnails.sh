@@ -65,6 +65,7 @@ update_thumbnails() {
   echo "Thumbnail workers: $parallel_jobs"
   mkdir -p -- "$thumbs_dir" "$metadata_dir"
   thumbnail_migrate_legacy_medium "$thumbs_dir"
+  echo "Listing albums in $albums_dir ..."
 
   while IFS= read -r -d '' album_path; do
     album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
