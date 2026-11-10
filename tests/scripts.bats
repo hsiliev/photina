@@ -37,7 +37,13 @@ EOF
 
   mkdir -p -- "$thumbnails/Album"
   printf thumbnail >"$thumbnails/Album/photo.jpg.webp"
-  printf medium >"$thumbnails/Album/photo.jpg_medium.webp"
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/check-missing-thumbnails.sh"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *'Missing thumbnail: Album/photo.jpg_me.webp'* ]]
+  [[ "$output" == *'Missing thumbnail: Album/photo.jpg_xs.webp'* ]]
+  [[ "$output" != *'photo.jpg_xl.webp'* ]]
+
+  for variant in xs sm me la; do printf x >"$thumbnails/Album/photo.jpg_$variant.webp"; done
   run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/check-missing-thumbnails.sh"
   [ "$status" -eq 0 ]
   [[ "$output" == *'No missing thumbnails found'* ]]
@@ -141,8 +147,10 @@ EOF
   printf "same-content" >"$albums/Album2/copy.jpg"
   printf "thumb1" >"$thumbs/Album1/photo.jpg.webp"
   printf "thumb2" >"$thumbs/Album2/copy.jpg.webp"
-  printf "medium1" >"$thumbs/Album1/photo.jpg_medium.webp"
-  printf "medium2" >"$thumbs/Album2/copy.jpg_medium.webp"
+  printf "medium1" >"$thumbs/Album1/photo.jpg_me.webp"
+  printf "medium2" >"$thumbs/Album2/copy.jpg_me.webp"
+  printf "small1" >"$thumbs/Album1/photo.jpg_xs.webp"
+  printf "small2" >"$thumbs/Album2/copy.jpg_xs.webp"
   printf "meta1" >"$metadata/Album1/photo.jpg.json"
   printf "meta2" >"$metadata/Album2/copy.jpg.json"
 
@@ -170,6 +178,8 @@ EOF
   thumb1_inode=$(stat -c '%i' -- "$thumbs/Album1/photo.jpg.webp")
   thumb2_inode=$(stat -c '%i' -- "$thumbs/Album2/copy.jpg.webp")
   [ "$thumb1_inode" -eq "$thumb2_inode" ]
+  [ "$(stat -c '%i' -- "$thumbs/Album1/photo.jpg_me.webp")" -eq "$(stat -c '%i' -- "$thumbs/Album2/copy.jpg_me.webp")" ]
+  [ "$(stat -c '%i' -- "$thumbs/Album1/photo.jpg_xs.webp")" -eq "$(stat -c '%i' -- "$thumbs/Album2/copy.jpg_xs.webp")" ]
 }
 
 @test "split-by-year organizes images by EXIF date into year subdirectories" {
@@ -366,11 +376,11 @@ mkfile() {
   for i in $(seq 150); do
     touch -- "$albums/Album/IMG_$i.JPG"
     printf x >"$thumbs/Album/IMG_$i.JPG.webp"
-    printf x >"$thumbs/Album/IMG_${i}.JPG_medium.webp"
+    printf x >"$thumbs/Album/IMG_${i}.JPG_me.webp"
   done
   touch -- "$albums/Album/clip.avi" "$albums/Album/pic.webp"
   printf x >"$thumbs/Album/clip.avi.webp"; printf x >"$thumbs/Album/clip.avi.web.mp4"
-  printf x >"$thumbs/Album/pic.webp.webp"; printf x >"$thumbs/Album/pic.webp_medium.webp"
+  printf x >"$thumbs/Album/pic.webp.webp"; printf x >"$thumbs/Album/pic.webp_xl.webp"
   declare -A nothing_expected=()
 
   run thumbnail_cleanup_stale "$albums" "$thumbs" nothing_expected
@@ -387,7 +397,7 @@ mkfile() {
   touch -- "$albums/Album/keep.JPG"
   for i in $(seq 150); do
     printf x >"$thumbs/Album/old$i.JPG.webp"
-    printf x >"$thumbs/Gone/g$i.png_medium.webp"
+    printf x >"$thumbs/Gone/g$i.png_la.webp"
   done
   printf x >"$thumbs/Album/keep.JPG.webp"
   printf x >"$thumbs/Album/oldclip.avi.web.mp4"
@@ -400,8 +410,55 @@ mkfile() {
   [ -e "$thumbs/Album/keep.JPG.webp" ]
   [ "$(find "$thumbs" -type f | wc -l)" -eq 1 ]
   [[ "$output" == *'old1.JPG.webp (no such original image)'* ]]
-  [[ "$output" == *'Gone/g1.png_medium.webp (no such original album)'* ]]
+  [[ "$output" == *'Gone/g1.png_la.webp (no such original album)'* ]]
   [[ "$output" == *'oldclip.avi.web.mp4 (no such original image)'* ]]
+}
+
+@test "thumbnail_original_relative maps every generated file back to its original" {
+  for name in x.jpg.webp x.jpg_xs.webp x.jpg_sm.webp x.jpg_me.webp x.jpg_la.webp x.jpg_xl.webp x.jpg_medium.webp; do
+    [ "$(thumbnail_original_relative "A/$name")" = 'A/x.jpg' ]
+  done
+  [ "$(thumbnail_original_relative A/clip.avi.web.mp4)" = 'A/clip.avi' ]
+  [ "$(thumbnail_original_relative A/pic.webp.webp)" = 'A/pic.webp' ]
+  [ "$(thumbnail_original_relative A/pic.webp_me.webp)" = 'A/pic.webp' ]
+}
+
+@test "legacy _medium.webp files are renamed to _me.webp without regeneration" {
+  thumbs="$test_root/thumbs"
+  mkdir -p -- "$thumbs/Album"
+  printf old >"$thumbs/Album/a.jpg_medium.webp"
+  printf keep >"$thumbs/Album/b.jpg_me.webp"
+  printf redundant >"$thumbs/Album/b.jpg_medium.webp"
+
+  run thumbnail_migrate_legacy_medium "$thumbs"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Renamed 1 _medium.webp file(s) to _me.webp'* ]]
+  [ "$(<"$thumbs/Album/a.jpg_me.webp")" = old ]
+  [ "$(<"$thumbs/Album/b.jpg_me.webp")" = keep ]
+  [ -z "$(find "$thumbs" -name '*_medium.webp')" ]
+}
+
+@test "thumbnail_make writes every viewer variant and converts unsupported formats for XL" {
+  command -v convert >/dev/null || skip "convert is required"
+  convert -list format | grep -qi '^ *WEBP' || skip "ImageMagick WebP support is required"
+  source "$PROJECT_ROOT/lib/thumbnails.sh"
+  mkdir -p -- "$test_root/thumbs"
+  convert -size 3000x2000 xc:blue "$test_root/big.jpg"
+  convert -size 3000x2000 xc:red "$test_root/scan.tiff"
+
+  thumbnail_make "$test_root/big.jpg" "$test_root/thumbs/big.jpg.webp" 250 convert big.jpg 1600 cascading >/dev/null
+  thumbnail_make "$test_root/scan.tiff" "$test_root/thumbs/scan.tiff.webp" 250 convert scan.tiff 1600 cascading >/dev/null
+
+  width() { identify -format '%w' "$1"; }
+  [ "$(width "$test_root/thumbs/big.jpg.webp")" -eq 250 ]
+  [ "$(width "$test_root/thumbs/big.jpg_xs.webp")" -eq 800 ]
+  [ "$(width "$test_root/thumbs/big.jpg_sm.webp")" -eq 1280 ]
+  [ "$(width "$test_root/thumbs/big.jpg_me.webp")" -eq 1600 ]
+  [ "$(width "$test_root/thumbs/big.jpg_la.webp")" -eq 2400 ]
+  [ ! -e "$test_root/thumbs/big.jpg_xl.webp" ]
+  [ "$(width "$test_root/thumbs/scan.tiff_xl.webp")" -eq 3000 ]
+  [ -z "$(find "$test_root/thumbs" -name '*.generating.*')" ]
 }
 
 @test "cleanup refuses to run when the albums directory is empty" {

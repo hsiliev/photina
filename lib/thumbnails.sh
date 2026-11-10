@@ -44,18 +44,54 @@ thumbnail_list_albums() {
   done
 }
 
+# Every generated file expected for SOURCE whose thumbnail is THUMBNAIL: the
+# thumbnail, its viewer variants (_xs/_sm/_me/_la, plus _xl for formats
+# browsers cannot show), and the web video when one is needed. The array named
+# by $1 receives the paths. Do not name the caller's array "files_out".
+thumbnail_expected_files_to() {
+  local -n files_out=$1
+  local source=$2 thumbnail=$3 variant
+  local -a variants=()
+  files_out=("$thumbnail")
+  photina_viewer_variants_to variants "$source"
+  for variant in "${variants[@]}"; do
+    files_out+=("${thumbnail%.webp}_$variant.webp")
+  done
+  if photina_needs_web_video "$source"; then
+    files_out+=("${thumbnail%.webp}.web.mp4")
+  fi
+}
+
+# Older versions named the viewer image <name>_medium.webp; it is now
+# <name>_me.webp. Rename instead of regenerating. A leftover _medium file whose
+# _me twin already exists is redundant and removed.
+thumbnail_migrate_legacy_medium() {
+  local thumbs_dir=$1 legacy target renamed=0
+  [[ -d "$thumbs_dir" ]] || return 0
+  while IFS= read -r -d '' legacy; do
+    target=${legacy%_medium.webp}_me.webp
+    if [[ -e "$target" ]]; then
+      rm -f -- "$legacy"
+    elif mv -- "$legacy" "$target"; then
+      renamed=$((renamed + 1))
+    else
+      warn "could not rename $legacy"
+    fi
+  done < <(find -P "$thumbs_dir" -type f -name '*_medium.webp' -print0)
+  (( renamed == 0 )) || printf 'Renamed %d _medium.webp file(s) to _me.webp\n' "$renamed"
+}
+
 thumbnail_make() {
   local source=$1 thumbnail=$2 thumbnail_size=$3 image_tool=$4
   local display_name=${5:-${source##*/}} medium_size=$6 display_mode=$7
-  local thumbnail_tmp=${thumbnail%.webp}.generating.webp
-  local medium=${thumbnail%.webp}_medium.webp
-  local medium_tmp=${medium%.webp}.generating.webp
-  local video_frame_tmp=${thumbnail%.webp}.video.jpg
-  local web_video=${thumbnail%.webp}.web.mp4
+  local base=${thumbnail%.webp}
+  local thumbnail_tmp=$base.generating.webp
+  local video_frame_tmp=$base.video.jpg
+  local web_video=$base.web.mp4
   local web_video_tmp=${web_video%.mp4}.generating.mp4
 
-  local input medium_quality=90
-  local -a input_args=()
+  local input variant quality=90 tmp
+  local -a input_args=() variants=() resize=() magick_args=() temps=("$thumbnail_tmp")
 
   mkdir -p -- "$(dirname -- "$thumbnail")"
   if photina_is_video "$source"; then
@@ -71,32 +107,47 @@ thumbnail_make() {
       return 0
     fi
     input=$video_frame_tmp
-    medium_quality=86
+    quality=86
   else
     input=$source
     input_args=(-auto-orient)
   fi
 
+  # One ImageMagick run decodes the source once and writes every output.
   if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
-    "$image_tool" "$input" "${input_args[@]}" \
-      \( +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-      \( +clone -thumbnail "${medium_size}x" -strip -quality "$medium_quality" -write "$medium_tmp" +delete \) \
-      null: || true
+    magick_args=('(' +clone -thumbnail "${thumbnail_size}x" -strip -quality 86 -write "$thumbnail_tmp" +delete ')')
   else
-    "$image_tool" "$input" "${input_args[@]}" \
-      \( +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^" \
-        -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove \
-        -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete \) \
-      \( +clone -thumbnail "${medium_size}x${medium_size}>" \
-        -strip -quality "$medium_quality" -write "$medium_tmp" +delete \) \
-      null: || true
+    magick_args=('(' +clone -thumbnail "${thumbnail_size}x${thumbnail_size}^"
+      -gravity center -extent "$thumbnail_size"x"$thumbnail_size" -background white -alpha remove
+      -alpha off -strip -quality 86 -write "$thumbnail_tmp" +delete ')')
   fi
+  photina_viewer_variants_to variants "$source"
+  for variant in "${variants[@]}"; do
+    case "$variant" in
+      xs) resize=(-thumbnail '800x>') ;;
+      sm) resize=(-thumbnail '1280x>') ;;
+      me)
+        if [[ "$display_mode" == cascading || "$display_mode" == justified ]]; then
+          resize=(-thumbnail "${medium_size}x")
+        else
+          resize=(-thumbnail "${medium_size}x${medium_size}>")
+        fi ;;
+      la) resize=(-thumbnail '2400x>') ;;
+      *) resize=() ;; # xl: full resolution, converted to WebP only
+    esac
+    tmp=${base}_$variant.generating.webp
+    temps+=("$tmp")
+    magick_args+=('(' +clone "${resize[@]}" -strip -quality "$quality" -write "$tmp" +delete ')')
+  done
+  "$image_tool" "$input" "${input_args[@]}" "${magick_args[@]}" null: || true
   rm -f -- "$video_frame_tmp"
-  if [[ ! -s "$thumbnail_tmp" || ! -s "$medium_tmp" ]]; then
-    rm -f -- "$thumbnail_tmp" "$medium_tmp"
-    warn "skipping unreadable media: $display_name"
-    return 0
-  fi
+  for tmp in "${temps[@]}"; do
+    if [[ ! -s "$tmp" ]]; then
+      rm -f -- "${temps[@]}"
+      warn "skipping unreadable media: $display_name"
+      return 0
+    fi
+  done
 
   if photina_needs_web_video "$source"; then
     if ffmpeg -i "$source" -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart -y "$web_video_tmp" \
@@ -108,45 +159,54 @@ thumbnail_make() {
     fi
   fi
   mv -f -- "$thumbnail_tmp" "$thumbnail"
-  mv -f -- "$medium_tmp" "$medium"
+  for variant in "${variants[@]}"; do
+    mv -f -- "${base}_$variant.generating.webp" "${base}_$variant.webp"
+  done
   printf '\t%s\n' "$display_name"
 }
 
 thumbnail_process_item() {
   local source=$1 album_path=$2 album_name=$3 thumbs_dir=$4 thumbnail_size=$5 image_tool=$6 relative medium_size display_mode thumbnail
+  local file complete=1
+  local -a expected=()
   [[ -n "$source" && -f "$source" ]] || return 0
   relative=${source#"$album_path"}; relative=${relative#/}
   [[ -n "$relative" ]] || return 0
   thumbnail="$thumbs_dir/$album_name/$relative.webp"
   medium_size=$7
   display_mode=$8
-  if photina_needs_web_video "$source"; then
-    [[ ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" || ! -f "${thumbnail%.webp}.web.mp4" ]] || return 0
-  else
-    [[ ! -f "$thumbnail" || ! -f "${thumbnail%.webp}_medium.webp" ]] || return 0
-  fi
+  thumbnail_expected_files_to expected "$source" "$thumbnail"
+  for file in "${expected[@]}"; do
+    [[ -f "$file" ]] || { complete=0; break; }
+  done
+  (( complete == 0 )) || return 0
   thumbnail_make "$source" "$thumbnail" "$thumbnail_size" "$image_tool" "$relative" "$medium_size" "$display_mode"
 }
 
-# Filter a NUL-delimited media list on stdin down to files whose thumbnail,
-# medium image, or web video is missing. Done in-process so complete files do
-# not cost a bash start each.
+# Filter a NUL-delimited media list on stdin down to files with any generated
+# output missing (thumbnail, viewer variants, web video). Done in-process so
+# complete files do not cost a bash start each.
 thumbnail_filter_pending() {
-  local album_path=$1 album_name=$2 thumbs_dir=$3 source relative thumbnail
+  local album_path=$1 album_name=$2 thumbs_dir=$3 source relative thumbnail file
+  local -a expected=()
   while IFS= read -r -d '' source; do
     relative=${source#"$album_path"}; relative=${relative#/}
     thumbnail="$thumbs_dir/$album_name/$relative.webp"
-    [[ -f "$thumbnail" && -f "${thumbnail%.webp}_medium.webp" ]] || { printf '%s\0' "$source"; continue; }
-    if photina_needs_web_video "$source" && [[ ! -f "${thumbnail%.webp}.web.mp4" ]]; then
-      printf '%s\0' "$source"
-    fi
+    thumbnail_expected_files_to expected "$source" "$thumbnail"
+    for file in "${expected[@]}"; do
+      if [[ ! -f "$file" ]]; then
+        printf '%s\0' "$source"
+        break
+      fi
+    done
   done
 }
 
 # shellcheck disable=SC2016
 thumbnail_batch_album() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 thumbnail_size=$4 medium_size=$5 image_tool=$6 parallel_jobs=$7 kind=$8 display_mode=$9 media_file=${10:-}
-  export -f warn photina_is_video photina_needs_web_video thumbnail_make thumbnail_process_item
+  export -f warn photina_is_video photina_needs_web_video photina_browser_image photina_viewer_variants_to \
+    thumbnail_expected_files_to thumbnail_make thumbnail_process_item
 
   if [[ -n "$media_file" ]]; then
     cat -- "$media_file"
@@ -288,12 +348,18 @@ thumbnail_albums_dir_is_populated() {
 }
 
 # Original media path (relative to the albums directory) of a generated
-# thumbnail file: x.jpg.webp, x.jpg_medium.webp, and x.avi.web.mp4 all belong
-# to x.jpg / x.jpg / x.avi. Originals are usually not .webp files.
+# thumbnail file: x.jpg.webp, x.jpg_me.webp (also _xs/_sm/_la/_xl, and the
+# legacy _medium), and x.avi.web.mp4 belong to x.jpg / x.jpg / x.avi.
+# Originals are usually not .webp files.
 thumbnail_original_relative() {
-  local relative=$1 original
+  local relative=$1 original suffix
   original=${relative%.web.mp4}
-  [[ "$original" == "$relative" ]] && original=${original%_medium.webp}
+  if [[ "$original" == "$relative" ]]; then
+    for suffix in _me _xs _sm _la _xl _medium; do
+      original=${relative%"$suffix.webp"}
+      [[ "$original" == "$relative" ]] || break
+    done
+  fi
   [[ "$original" == "$relative" ]] && original=${original%.webp}
   printf '%s' "$original"
 }
@@ -333,17 +399,16 @@ thumbnail_cleanup_stale() {
 # shellcheck disable=SC2034 # arrays are namerefs to the caller's variables
 thumbnail_add_expected_outputs() {
   local album_path=$1 album_name=$2 thumbs_dir=$3 media_file=$4 expected_name=$5
-  local source relative thumbnail
+  local source relative file
+  local -a files=()
   local -n output="$expected_name"
 
   while IFS= read -r -d '' source; do
     relative=${source#"$album_path"}; relative=${relative#/}
-    thumbnail="$thumbs_dir/$album_name/$relative.webp"
-    output["$thumbnail"]=1
-    output["${thumbnail%.webp}_medium.webp"]=1
-    if photina_needs_web_video "$source"; then
-      output["${thumbnail%.webp}.web.mp4"]=1
-    fi
+    thumbnail_expected_files_to files "$source" "$thumbs_dir/$album_name/$relative.webp"
+    for file in "${files[@]}"; do
+      output["$file"]=1
+    done
   done <"$media_file"
 }
 
@@ -435,6 +500,7 @@ update_thumbnails() {
   echo "Image tool: $image_tool"
   echo "Thumbnail workers: $parallel_jobs"
   mkdir -p -- "$thumbs_dir" "$metadata_dir"
+  thumbnail_migrate_legacy_medium "$thumbs_dir"
 
   while IFS= read -r -d '' album_path; do
     album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}

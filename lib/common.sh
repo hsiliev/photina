@@ -45,6 +45,34 @@ photina_needs_web_video() {
   [[ "$extension" != mp4 ]] && photina_is_video "$1"
 }
 
+# Image formats every current browser can display. Originals in these formats
+# are served as-is for the largest viewer size (and for downloads); anything
+# else (tiff, heic, heif, ...) gets a converted _xl.webp instead.
+photina_browser_image() {
+  local extension=${1##*.}
+  extension=${extension,,}
+  case "$extension" in
+    jpg|jpeg|png|gif|webp|avif|bmp) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Fill the array named by $1 with the viewer image variants generated for the
+# media file $2. They match NanoGallery's srcXS/srcSM/srcME/srcLA/srcXL
+# breakpoints and become <name>_<variant>.webp next to the thumbnail. Videos
+# only get "me" (a frame; the viewer plays the video itself). There is no "xl"
+# file when the original is browser-displayable.
+photina_viewer_variants_to() {
+  local -n variants_ref=$1
+  if photina_is_video "$2"; then
+    variants_ref=(me)
+  elif photina_browser_image "$2"; then
+    variants_ref=(xs sm me la)
+  else
+    variants_ref=(xs sm me la xl)
+  fi
+}
+
 # Locks live outside the directories they protect so stale-file cleanup and
 # gallery deletion never see them. KIND is "cache" (thumbnail/metadata
 # caches, keyed by the thumbnail directory) or "gallery" (generated output,

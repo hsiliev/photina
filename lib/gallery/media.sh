@@ -110,17 +110,18 @@ gallery_read_metadata() {
 gallery_render_media_item() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 item_index=$6
   local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url medium_relative
-  local web_video_url
+  local web_video_url variant variant_url js_variant_url viewer_variants=''
+  local -a variants=()
   local title exif_location exif_model exif_time exif_lens exif_focal_length exif_fstop exif_iso exif_exposure exif_flash viewer_url
   local -a metadata_values=()
 
   relative=${source#"$album_dir"}; relative=${relative#/}
   thumb_path="$thumbs_dir/$album_rel/$relative.webp"
-  medium_path="${thumb_path%.webp}_medium.webp"
+  medium_path="${thumb_path%.webp}_me.webp"
   gallery_url_escape_path_to media_url "$album_rel/$relative"
   media_url="/media/$media_url"
   medium_relative="${relative}.webp"
-  medium_relative="${medium_relative%.webp}_medium.webp"
+  medium_relative="${medium_relative%.webp}_me.webp"
   gallery_thumbnail_url_to medium_url "$medium_path" "$album_rel/$medium_relative"
   gallery_thumbnail_url_to thumb_url "$thumb_path" "$album_rel/$relative.webp"
   title=${relative##*/}; title=${title%.*}
@@ -146,7 +147,23 @@ gallery_render_media_item() {
     fi
   fi
 
+  # "src" is the _me image; NanoGallery swaps in srcXS/SM/LA/XL by viewport
+  # width when present. XL is the original when browsers can show its format
+  # (also what downloadURL serves), else the converted _xl.webp.
   viewer_url=$medium_url
+  if ! photina_is_video "$source"; then
+    photina_viewer_variants_to variants "$source"
+    for variant in "${variants[@]}"; do
+      [[ "$variant" == me ]] && continue
+      gallery_thumbnail_url_to variant_url "${thumb_path%.webp}_$variant.webp" "$album_rel/${relative}_$variant.webp"
+      gallery_js_escape_to js_variant_url "$variant_url"
+      viewer_variants+=",\"src${variant^^}\":\"$js_variant_url\""
+    done
+    if photina_browser_image "$source"; then
+      gallery_js_escape_to js_variant_url "$media_url"
+      viewer_variants+=",\"srcXL\":\"$js_variant_url\""
+    fi
+  fi
   if photina_is_video "$source"; then
     if photina_needs_web_video "$source"; then
       web_video_path="${thumb_path%.webp}.web.mp4"
@@ -171,11 +188,11 @@ gallery_render_media_item() {
           -n "$exif_focal_length" || -n "$exif_fstop" || -n "$exif_iso" || \
           -n "$exif_exposure" || -n "$exif_flash" ]]; then
     gallery_print_template item-with-metadata.html \
-      "$js_thumb" "$js_viewer" "$js_media" "$js_media" "$js_title" "$js_model" "$js_time" \
+      "$js_thumb" "$js_viewer" "$viewer_variants" "$js_media" "$js_title" "$js_model" "$js_time" \
       "$js_focal" "$js_fstop" "$js_iso" "$js_exposure" "$js_flash" "$js_location" "$js_lens"
   else
     gallery_print_template item.html \
-      "$js_thumb" "$js_viewer" "$js_media" "$js_media" "$js_title" "$js_model" "$js_time" \
+      "$js_thumb" "$js_viewer" "$viewer_variants" "$js_media" "$js_title" "$js_model" "$js_time" \
       "$js_focal" "$js_fstop" "$js_iso" "$js_location"
   fi
 

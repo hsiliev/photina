@@ -35,18 +35,22 @@ replace_with_hardlink() {
 }
 
 link_duplicate_artifacts() {
-  local original=$1 duplicate=$2 original_thumb duplicate_thumb
-  local original_medium duplicate_medium original_metadata duplicate_metadata
+  local original=$1 duplicate=$2 original_thumb duplicate_thumb variant
+  local original_metadata duplicate_metadata
 
   original_thumb="$thumbs_dir/$3/$4.webp"
   duplicate_thumb="$thumbs_dir/$5/$6.webp"
-  original_medium="${original_thumb%.webp}_medium.webp"
-  duplicate_medium="${duplicate_thumb%.webp}_medium.webp"
   original_metadata="$metadata_dir/$3/$4.json"
   duplicate_metadata="$metadata_dir/$5/$6.json"
 
   replace_with_hardlink "$original_thumb" "$duplicate_thumb"
-  replace_with_hardlink "$original_medium" "$duplicate_medium"
+  replace_with_hardlink "${original_thumb%.webp}_me.webp" "${duplicate_thumb%.webp}_me.webp"
+  # The other viewer sizes are optional (_xl exists only for formats browsers
+  # cannot show), so link whichever the first copy has.
+  for variant in xs sm la xl; do
+    [[ -f "${original_thumb%.webp}_$variant.webp" ]] || continue
+    replace_with_hardlink "${original_thumb%.webp}_$variant.webp" "${duplicate_thumb%.webp}_$variant.webp"
+  done
   replace_with_hardlink "$original_metadata" "$duplicate_metadata"
 }
 

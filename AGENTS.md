@@ -19,8 +19,8 @@ stored under `ALBUMS_DIR`; generated thumbnails and metadata are stored in
 
 ```text
 *.sh                      user-facing commands (listed under Main commands)
-lib/common.sh             shared die/warn/config/core-count/video helpers
-lib/thumbnails.sh         thumbnail, medium, web-video, metadata, checksum, cleanup
+lib/common.sh             shared die/warn/config/core-count/video/viewer-variant helpers
+lib/thumbnails.sh         thumbnail, viewer-image, web-video, metadata, checksum, cleanup
 lib/caddy.sh              generate_caddyfile: merges the managed Caddy block
 lib/gallery/              gallery generator (main, core, media, albums, generator,
                           generate = CLI entry for admin|guest, delete)
@@ -51,8 +51,9 @@ serving.
 
 ## Main commands
 
-- `./update-thumbnails.sh` generates/reuses thumbnails, medium images, web
-  video previews, EXIF metadata, and `md5sums.txt` manifests. It also removes
+- `./update-thumbnails.sh` generates/reuses thumbnails, viewer images (see
+  "Viewer image variants"), web video previews, EXIF metadata, and
+  `md5sums.txt` manifests. It also removes
   stale thumbnail/metadata files and empty thumbnail/metadata directories for
   deleted albums.
   Before processing it warns (does not fail) when the `nls_utf8` kernel module
@@ -61,7 +62,7 @@ serving.
   mount without it, and vfat/exfat/ntfs need it for non-ASCII names.
   `thumbnail_make` never feeds unreadable media to ImageMagick or `mv`: a
   video frame comes from `ffmpegthumbnailer`, falling back to `ffmpeg`; if
-  no non-empty frame or no non-empty thumbnail/medium results, it prints a
+  no non-empty frame or any missing/empty thumbnail or viewer image, it prints a
   `skipping unreadable ...` warning, removes temp files and returns 0 so the
   batch continues (the file stays pending and is retried next run). A failed
   web-video conversion only warns; thumbnails are still published. `warn` is
@@ -70,7 +71,8 @@ serving.
   a flaky CIFS mount once returned incomplete listings and a run deleted a
   large part of the cache. A thumbnail not in the scanned set is removed only
   when its original is verified missing on disk: `thumbnail_original_relative`
-  strips `.web.mp4`, `_medium.webp`, or `.webp` (thumbnails are named
+  strips `.web.mp4`, `_me|_xs|_sm|_la|_xl|_medium.webp`, or `.webp`
+  (thumbnails are named
   `<original name>.webp`, e.g. `IMG_1.JPG.webp`; originals are rarely `.webp`
   themselves, though `pic.webp` -> `pic.webp.webp` also works). If the
   original exists, the file is kept and counted in a "Kept N ..." line.
@@ -85,7 +87,7 @@ serving.
   (`thumbnail_albums_dir_is_populated`, e.g. an unmounted share). There is no
   override flag and no percentage limit. Do not remove these checks.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
-  thumbnail, medium, and web-video outputs. It exits with status 1 if any are
+  thumbnail, viewer-image, and web-video outputs. It exits with status 1 if any are
   missing; it does not modify the thumbnail tree.
 - `./cleanup-thumbnails-and-metadata.sh` removes thumbnail files and empty thumbnail
   directories that no longer correspond to albums or media files. It does not
@@ -123,7 +125,8 @@ serving.
   and lists files sharing an MD5; exits 1 if duplicates exist. It never
   modifies files.
 - `./eliminate-duplicates.sh` finds the same duplicates and replaces the
-  duplicate files' generated thumbnails, medium images, and metadata with
+  duplicate files' generated thumbnails, viewer images (`_me` always; `_xs`,
+  `_sm`, `_la`, `_xl` when the first copy has them), and metadata with
   hard links to the first copy's; the album sources are not changed.
 - `./split-by-year.sh DIRECTORY` moves images directly inside DIRECTORY into
   `YYYY` subdirectories using EXIF `DateTimeOriginal`, `CreateDate`, or
@@ -180,6 +183,36 @@ Run `update-thumbnails.sh` before gallery generation. Gallery regeneration uses
 the per-album `METADATA_DIR/<album>/md5sums.txt` manifest to detect added,
 removed, or changed media.
 
+## Viewer image variants
+
+NanoGallery 3.0.5 picks `item.src<SIZE>` (falling back to `src`) from the
+viewport width **once, when an album's gallery initializes** (not on later
+resizes, not by device pixel ratio). Breakpoints are its defaults, which
+Photina does not override: XS < 480, SM < 992, ME < 1200, LA < 1800, XL >= 1800.
+`srcMax` is not read by 3.0.5 and is not emitted; downloads use `downloadURL`
+(the original, `/media/...`).
+
+For each image `thumbnail_make` writes, in one ImageMagick run next to
+`<name>.webp`: `_xs.webp` (800px wide), `_sm.webp` (1280), `_me.webp`
+(`MEDIUM_SIZE`, default 1600; same sizing as the old `_medium.webp`:
+`WIDTHx` in cascading/justified, `WxW>` in grid modes), `_la.webp` (2400).
+`xs/sm/la` use `WIDTHx>` (never enlarge). `_xl.webp` (full size, WebP) exists
+only when `photina_browser_image` says browsers cannot show the original
+(whitelist: jpg jpeg png gif webp avif bmp; so tif/tiff/heic/heif and unknown
+extensions are converted). Otherwise `srcXL` is the original file. Videos get
+only the thumbnail and a `_me.webp` frame (the viewer plays the video).
+`photina_viewer_variants_to` (lib/common.sh) is the single source of which
+variants exist; `thumbnail_expected_files_to` turns that into file paths and
+drives pending checks, expected outputs, and check-missing. Widths `800`,
+`1280`, `2400` are constants in `thumbnail_make`; only `MEDIUM_SIZE` is
+configurable. Generation fails (skip + warning) if any variant is empty.
+
+`thumbnail_migrate_legacy_medium` runs at the start of `update_thumbnails` and
+renames `*_medium.webp` to `*_me.webp` (removing the old file if the `_me`
+twin exists), so existing mediums are not regenerated. Adding the new sizes
+makes existing photos pending once. Cleanup still understands `_medium.webp`.
+Changing the set of variants requires bumping `gallery_fragment_version`.
+
 ## Locking
 
 `photina_acquire_lock KIND TARGET` (in `lib/common.sh`) takes a non-blocking
@@ -220,13 +253,14 @@ lets a second job start. Tests set `TMPDIR` to keep locks isolated.
   and `thumbnail_update_album` (thumbnails, metadata, checksums for one album).
   The update, cleanup, and missing-check scripts all reuse them.
   `thumbnail_make` builds one ImageMagick command for images and video frames;
-  only the input (`-auto-orient` for images) and medium quality differ.
+  only the input (`-auto-orient` for images) and viewer-image quality (90, 86 for
+  video frames) differ.
   Relative-path expansion stays inline (`${source#"$album_path"}`) because a
   command substitution per file would fork in hot loops.
 
 ## Performance notes (fork avoidance)
 
-- `thumbnail_filter_pending` drops media whose thumbnail, medium image, and
+- `thumbnail_filter_pending` drops media whose thumbnail, viewer images, and
   required web video already exist before `xargs` starts workers, so unchanged
   files cost no bash process. `thumbnail_process_item` still re-checks.
 - `gallery_preload_metadata` reads every metadata JSON of an album with one
@@ -327,7 +361,7 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 12 -->
+<!-- photina-fragment-version: 13 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 <!-- photina-children: CHECKSUM:SIZE -->
 ```
@@ -362,7 +396,7 @@ generation is separate and is CPU-intensive due to ImageMagick/FFmpeg.
 
 Thumbnail updates collect one sorted NUL-delimited media list per album and
 reuse it for thumbnail generation, metadata extraction, checksum handling, and
-missing-thumbnail checks. Complete thumbnail/medium pairs are skipped, and
+missing-thumbnail checks. Media whose thumbnail and viewer images all exist are skipped, and
 metadata extraction is limited to files without an existing metadata record.
 
 Current gallery-generation optimizations include:
@@ -422,7 +456,9 @@ does not modify configured gallery data. It covers gallery URL/index helpers,
 shallow multi-level fragments, manifest checksum invalidation, template
 JavaScript validation, missing-thumbnail checks, direct-directory comparison,
 selected and all cache deletion, admin and guest gallery deletion, guest parent
-preview resolution with restricted permissions, duplicate detection and
+preview resolution with restricted permissions, viewer-variant expected outputs,
+per-breakpoint gallery item sources, legacy `_medium` migration, real
+`thumbnail_make` output widths, duplicate detection and
 elimination, EXIF year splitting, and `fix-names.sh` (trailing space/dot trimming,
 forbidden/mangled names, long-name shortening, empty-file deletion).
 

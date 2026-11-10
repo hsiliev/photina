@@ -26,6 +26,8 @@ GUEST_ALBUMS=(
 # Desktop thumbnail size; display sizes are capped at 120px below 480px
 # and 180px below 992px. The selected layout's auto dimension is preserved.
 THUMBNAIL_SIZE=250
+# Width in pixels of the "me" viewer image (viewports 992-1199px). The other
+# viewer sizes are fixed: xs 800, sm 1280, la 2400; xl is the original.
 MEDIUM_SIZE=1600
 
 # Supported media extensions, without leading dots.

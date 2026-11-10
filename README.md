@@ -79,6 +79,17 @@ Thumbnail updates can be interrupted and resumed. Existing thumbnails are
 reused, obsolete thumbnails are removed, and new thumbnails are generated in
 parallel.
 
+Besides the gallery thumbnail (`<name>.webp`), each image gets one viewer
+image per screen size, chosen by the browser from the viewport width when an
+album opens: `<name>_xs.webp` (800px wide, viewports under 480px),
+`_sm.webp` (1280px, under 992px), `_me.webp` (`MEDIUM_SIZE`, default 1600px,
+under 1200px), and `_la.webp` (2400px, under 1800px). Wider screens use the
+original file when it is a format every browser can show (JPEG, PNG, GIF,
+WebP, AVIF, BMP); otherwise (TIFF, HEIC, ...) a full-size `_xl.webp` is
+generated. Downloads always give the original. Videos only get a thumbnail
+and a `_me.webp` frame. Older `_medium.webp` files are renamed to `_me.webp`
+on the next update; the new sizes are generated for existing photos then.
+
 ## Update the gallery
 
 When media is added or removed, run both gallery generators:
@@ -148,7 +159,7 @@ To check all manifests for duplicate files, run:
 The command exits with status 1 when duplicates are found.
 
 To replace duplicate media with hard links to the first file and link their
-generated thumbnails, medium images, and metadata, run:
+generated thumbnails, viewer images, and metadata, run:
 
 ```bash
 ./eliminate-duplicates.sh

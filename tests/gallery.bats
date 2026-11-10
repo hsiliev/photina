@@ -178,23 +178,60 @@ with open(sys.argv[2], "w") as out:
   [ ! -d "$fragments/Removed" ]
 }
 
-@test "expected thumbnail outputs include medium and web-video files" {
+@test "expected thumbnail outputs list the viewer variants and web-video files" {
   album="$test_root/albums/Album"
   thumbnails="$test_root/thumbnails"
   mkdir -p -- "$album"
   printf image >"$album/photo.jpg"
+  printf image >"$album/scan.tiff"
   printf video >"$album/movie.mov"
   media_file="$test_root/media.list"
-  printf '%s\0%s\0' "$album/photo.jpg" "$album/movie.mov" >"$media_file"
+  printf '%s\0%s\0%s\0' "$album/photo.jpg" "$album/scan.tiff" "$album/movie.mov" >"$media_file"
+  IMAGE_EXTENSIONS=(jpg tiff)
+  VIDEO_EXTENSIONS=(mov)
   declare -A expected=()
 
   thumbnail_add_expected_outputs "$album" Album "$thumbnails" "$media_file" expected
 
-  [ -n "${expected["$thumbnails/Album/photo.jpg.webp"]+present}" ]
-  [ -n "${expected["$thumbnails/Album/photo.jpg_medium.webp"]+present}" ]
+  # Browser-displayable originals are used as the XL image, so no _xl file.
+  for suffix in '' _xs _sm _me _la; do
+    [ -n "${expected["$thumbnails/Album/photo.jpg$suffix.webp"]+present}" ]
+  done
+  [ -z "${expected["$thumbnails/Album/photo.jpg_xl.webp"]+present}" ]
+  [ -z "${expected["$thumbnails/Album/photo.jpg_medium.webp"]+present}" ]
+  # Formats browsers cannot show are converted for XL.
+  for suffix in '' _xs _sm _me _la _xl; do
+    [ -n "${expected["$thumbnails/Album/scan.tiff$suffix.webp"]+present}" ]
+  done
+  # Videos keep a thumbnail and one frame image plus the web video.
   [ -n "${expected["$thumbnails/Album/movie.mov.webp"]+present}" ]
-  [ -n "${expected["$thumbnails/Album/movie.mov_medium.webp"]+present}" ]
+  [ -n "${expected["$thumbnails/Album/movie.mov_me.webp"]+present}" ]
   [ -n "${expected["$thumbnails/Album/movie.mov.web.mp4"]+present}" ]
+  [ -z "${expected["$thumbnails/Album/movie.mov_xs.webp"]+present}" ]
+}
+
+@test "gallery items give NanoGallery per-breakpoint sources and an original download" {
+  albums="$test_root/albums"; thumbs="$test_root/thumbnails"; metadata="$test_root/metadata"
+  mkdir -p -- "$albums/Album" "$thumbs/Album" "$metadata"
+  printf image >"$albums/Album/photo.jpg"
+  printf image >"$albums/Album/scan.tiff"
+  IMAGE_EXTENSIONS=(jpg tiff)
+  gallery_template_dir="$PROJECT_ROOT/templates/gallery"
+
+  jpg=$(gallery_render_media_item "$albums/Album/photo.jpg" "$albums/Album" Album "$thumbs" "$metadata" 0)
+  tiff=$(gallery_render_media_item "$albums/Album/scan.tiff" "$albums/Album" Album "$thumbs" "$metadata" 0)
+
+  [[ "$jpg" == *'"src":"/thumbnails/Album/photo.jpg_me.webp?v='* ]]
+  [[ "$jpg" == *'"srcXS":"/thumbnails/Album/photo.jpg_xs.webp?v='* ]]
+  [[ "$jpg" == *'"srcSM":"/thumbnails/Album/photo.jpg_sm.webp?v='* ]]
+  [[ "$jpg" == *'"srcLA":"/thumbnails/Album/photo.jpg_la.webp?v='* ]]
+  # The original is the XL image and the download.
+  [[ "$jpg" == *'"srcXL":"/media/Album/photo.jpg"'* ]]
+  [[ "$jpg" == *'"downloadURL":"/media/Album/photo.jpg"'* ]]
+  [[ "$jpg" != *srcMax* ]]
+  # Unsupported formats get a converted XL image but still download the original.
+  [[ "$tiff" == *'"srcXL":"/thumbnails/Album/scan.tiff_xl.webp?v='* ]]
+  [[ "$tiff" == *'"downloadURL":"/media/Album/scan.tiff"'* ]]
 }
 
 @test "guest gallery assigns allowed child preview to parent album when parent content is not allowed" {
