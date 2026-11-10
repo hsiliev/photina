@@ -106,7 +106,7 @@ published child link may briefly return 404 until that fragment is generated.
 Each fragment begins with internal comments like:
 
 ```html
-<!-- photina-fragment-version: 13 -->
+<!-- photina-fragment-version: 12 -->
 <!-- photina-media-manifest: CHECKSUM:SIZE -->
 <!-- photina-children: CHECKSUM:SIZE -->
 ```

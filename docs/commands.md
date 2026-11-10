@@ -25,7 +25,7 @@ the project notes in [AGENTS.md](../AGENTS.md); keep both in sync.
   a flaky CIFS mount once returned incomplete listings and a run deleted a
   large part of the cache. A thumbnail not in the scanned set is removed only
   when its original is verified missing on disk: `thumbnail_original_relative`
-  strips `.web.mp4`, `_me|_xs|_sm|_la|_xl|_medium.webp`, or `.webp`
+  strips `.web.mp4`, `_me|_xs|_sm|_la|_xl.webp`, or `.webp`
   (thumbnails are named
   `<original name>.webp`, e.g. `IMG_1.JPG.webp`; originals are rarely `.webp`
   themselves, though `pic.webp` -> `pic.webp.webp` also works). If the

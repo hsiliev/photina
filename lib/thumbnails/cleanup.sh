@@ -15,14 +15,14 @@ thumbnail_albums_dir_is_populated() {
 }
 
 # Original media path (relative to the albums directory) of a generated
-# thumbnail file: x.jpg.webp, x.jpg_me.webp (also _xs/_sm/_la/_xl, and the
-# legacy _medium), and x.avi.web.mp4 belong to x.jpg / x.jpg / x.avi.
+# thumbnail file: x.jpg.webp, x.jpg_me.webp (also _xs/_sm/_la/_xl), and
+# x.avi.web.mp4 belong to x.jpg / x.jpg / x.avi.
 # Originals are usually not .webp files.
 thumbnail_original_relative() {
   local relative=$1 original suffix
   original=${relative%.web.mp4}
   if [[ "$original" == "$relative" ]]; then
-    for suffix in _me _xs _sm _la _xl _medium; do
+    for suffix in _me _xs _sm _la _xl; do
       original=${relative%"$suffix.webp"}
       [[ "$original" == "$relative" ]] || break
     done

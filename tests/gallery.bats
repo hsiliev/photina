@@ -198,7 +198,6 @@ with open(sys.argv[2], "w") as out:
     [ -n "${expected["$thumbnails/Album/photo.jpg$suffix.webp"]+present}" ]
   done
   [ -z "${expected["$thumbnails/Album/photo.jpg_xl.webp"]+present}" ]
-  [ -z "${expected["$thumbnails/Album/photo.jpg_medium.webp"]+present}" ]
   # Formats browsers cannot show are converted for XL.
   for suffix in '' _xs _sm _me _la _xl; do
     [ -n "${expected["$thumbnails/Album/scan.tiff$suffix.webp"]+present}" ]

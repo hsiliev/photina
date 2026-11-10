@@ -415,50 +415,12 @@ mkfile() {
 }
 
 @test "thumbnail_original_relative maps every generated file back to its original" {
-  for name in x.jpg.webp x.jpg_xs.webp x.jpg_sm.webp x.jpg_me.webp x.jpg_la.webp x.jpg_xl.webp x.jpg_medium.webp; do
+  for name in x.jpg.webp x.jpg_xs.webp x.jpg_sm.webp x.jpg_me.webp x.jpg_la.webp x.jpg_xl.webp; do
     [ "$(thumbnail_original_relative "A/$name")" = 'A/x.jpg' ]
   done
   [ "$(thumbnail_original_relative A/clip.avi.web.mp4)" = 'A/clip.avi' ]
   [ "$(thumbnail_original_relative A/pic.webp.webp)" = 'A/pic.webp' ]
   [ "$(thumbnail_original_relative A/pic.webp_me.webp)" = 'A/pic.webp' ]
-}
-
-@test "legacy _medium.webp files are renamed to _me.webp without regeneration" {
-  thumbs="$test_root/thumbs"
-  mkdir -p -- "$thumbs/Album"
-  printf old >"$thumbs/Album/a.jpg_medium.webp"
-  printf keep >"$thumbs/Album/b.jpg_me.webp"
-  printf redundant >"$thumbs/Album/b.jpg_medium.webp"
-
-  run thumbnail_migrate_legacy_medium "$thumbs"
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'Checking for legacy _medium.webp files ...'* ]]
-  [[ "$output" == *$'\tAlbum'* ]]
-  [[ "$output" != *Renamed* ]]
-  [ "$(<"$thumbs/Album/a.jpg_me.webp")" = old ]
-  [ "$(<"$thumbs/Album/b.jpg_me.webp")" = keep ]
-  [ -z "$(find "$thumbs" -name '*_medium.webp')" ]
-}
-
-@test "legacy _medium scan prints each directory it checks and no summary" {
-  thumbs="$test_root/thumbs"
-  mkdir -p -- "$thumbs/A/Sub" "$thumbs/Empty"
-  printf x >"$thumbs/A/one.jpg_medium.webp"
-  printf x >"$thumbs/A/Sub/deep.jpg_medium.webp"
-
-  run thumbnail_migrate_legacy_medium "$thumbs"
-
-  [ "$status" -eq 0 ]
-  [ "${lines[0]}" = 'Checking for legacy _medium.webp files ...' ]
-  # root (.), A, A/Sub, Empty: one line each, tab-indented, nothing else
-  [ "${#lines[@]}" -eq 5 ]
-  for directory in . A A/Sub Empty; do
-    [[ "$output" == *$'\n\t'"$directory"* ]]
-  done
-  [[ "$output" != *Renamed* && "$output" != *'No legacy'* ]]
-  [ -f "$thumbs/A/one.jpg_me.webp" ]
-  [ -f "$thumbs/A/Sub/deep.jpg_me.webp" ]
 }
 
 @test "thumbnail_make writes every viewer variant and converts unsupported formats for XL" {

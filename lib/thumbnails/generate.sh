@@ -21,31 +21,6 @@ thumbnail_expected_files_to() {
   fi
 }
 
-# Older versions named the viewer image <name>_medium.webp; it is now
-# <name>_me.webp. Rename instead of regenerating. A leftover _medium file whose
-# _me twin already exists is redundant and removed. Walking a large (network)
-# cache is slow, so progress is live: each directory is printed before its
-# files are checked (the listing streams from find, one glob per directory, no
-# per-directory fork). There is no summary.
-thumbnail_migrate_legacy_medium() {
-  local thumbs_dir=$1 directory relative legacy target
-  [[ -d "$thumbs_dir" ]] || return 0
-  printf 'Checking for legacy _medium.webp files ...\n'
-  while IFS= read -r -d '' directory; do
-    relative=${directory#"$thumbs_dir"}; relative=${relative#/}
-    printf '\t%s\n' "${relative:-.}"
-    for legacy in "$directory"/*_medium.webp; do
-      [[ -f "$legacy" && ! -L "$legacy" ]] || continue
-      target=${legacy%_medium.webp}_me.webp
-      if [[ -e "$target" ]]; then
-        rm -f -- "$legacy"
-      elif ! mv -- "$legacy" "$target"; then
-        warn "could not rename $legacy"
-      fi
-    done
-  done < <(find -P "$thumbs_dir" -type d -print0)
-}
-
 # True when the display mode keeps each photo's aspect ratio (fixed width,
 # free height). Grid modes instead crop thumbnails to squares.
 thumbnail_keeps_aspect_ratio() {

@@ -87,8 +87,7 @@ under 1200px), and `_la.webp` (2400px, under 1800px). Wider screens use the
 original file when it is a format every browser can show (JPEG, PNG, GIF,
 WebP, AVIF, BMP); otherwise (TIFF, HEIC, ...) a full-size `_xl.webp` is
 generated. Downloads always give the original. Videos only get a thumbnail
-and a `_me.webp` frame. Older `_medium.webp` files are renamed to `_me.webp`
-on the next update; the new sizes are generated for existing photos then.
+and a `_me.webp` frame. Existing photos get the new sizes on the next update.
 
 ## Update the gallery
 

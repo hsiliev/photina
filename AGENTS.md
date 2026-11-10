@@ -13,7 +13,7 @@ consistent with the actual implementation before completing the task.
 - [docs/commands.md](docs/commands.md): every command's behavior, and the
   locking protocol.
 - [docs/thumbnails.md](docs/thumbnails.md): thumbnail and viewer-image
-  variants (`_xs/_sm/_me/_la/_xl`), sizing, and the legacy `_medium` rename.
+  variants (`_xs/_sm/_me/_la/_xl`), and sizing.
 - [docs/gallery.md](docs/gallery.md): gallery generator architecture,
   fragments and invalidation, album previews, performance notes.
 - [docs/validation.md](docs/validation.md): syntax/lint/test commands and
