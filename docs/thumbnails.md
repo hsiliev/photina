@@ -30,10 +30,11 @@ configurable. Generation fails (skip + warning) if any variant is empty.
 `thumbnail_migrate_legacy_medium` runs at the start of `update_thumbnails` and
 renames `*_medium.webp` to `*_me.webp` (removing the old file if the `_me`
 twin exists), so existing mediums are not regenerated. Walking a big cache is
-slow and runs on every update (there is deliberately no marker file), so it
-prints "Checking for legacy ..." first, then one "Renamed N ... in <dir>" line
-per directory (collected and sorted, since `find` interleaves directories), or
-"No legacy ... to rename".
+slow and runs on every update (there is deliberately no marker file), so
+progress is live: "Checking for legacy _medium.webp files ..." then each
+directory (relative to the cache, `.` for the root) as it is checked, streamed
+from `find -type d` with one glob per directory and no fork per directory.
+There is no summary line; only rename failures warn.
 `update_thumbnails` then prints "Listing albums in ..." before the album loop,
 because the first `find | sort -z` is silent until it finishes. Adding the new sizes
 makes existing photos pending once. Cleanup still understands `_medium.webp`.

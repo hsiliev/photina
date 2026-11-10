@@ -433,42 +433,32 @@ mkfile() {
   run thumbnail_migrate_legacy_medium "$thumbs"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *'Renamed 1 _medium.webp file(s) to _me.webp in Album'* ]]
+  [[ "$output" == *'Checking for legacy _medium.webp files ...'* ]]
+  [[ "$output" == *$'\tAlbum'* ]]
+  [[ "$output" != *Renamed* ]]
   [ "$(<"$thumbs/Album/a.jpg_me.webp")" = old ]
   [ "$(<"$thumbs/Album/b.jpg_me.webp")" = keep ]
   [ -z "$(find "$thumbs" -name '*_medium.webp')" ]
 }
 
-@test "legacy _medium renames are reported once per directory" {
+@test "legacy _medium scan prints each directory it checks and no summary" {
   thumbs="$test_root/thumbs"
-  mkdir -p -- "$thumbs/A/Sub" "$thumbs/A/zeta"
+  mkdir -p -- "$thumbs/A/Sub" "$thumbs/Empty"
   printf x >"$thumbs/A/one.jpg_medium.webp"
-  printf x >"$thumbs/A/two.jpg_medium.webp"
   printf x >"$thumbs/A/Sub/deep.jpg_medium.webp"
-  printf x >"$thumbs/A/zeta/z.jpg_medium.webp"
-  printf x >"$thumbs/A/three.jpg_medium.webp"
 
   run thumbnail_migrate_legacy_medium "$thumbs"
 
   [ "$status" -eq 0 ]
-  [ "$(grep -c '^Renamed' <<<"$output")" -eq 3 ]
-  [[ "$output" == *'Renamed 3 _medium.webp file(s) to _me.webp in A'$'\n'* ]]
-  [[ "$output" == *'Renamed 1 _medium.webp file(s) to _me.webp in A/Sub'* ]]
-  [[ "$output" == *'Renamed 1 _medium.webp file(s) to _me.webp in A/zeta'* ]]
-  # sorted by directory
-  [[ "$output" == *"in A"$'\n'*"in A/Sub"$'\n'*"in A/zeta"* ]]
-}
-
-@test "legacy _medium scan announces itself and reports when there is nothing to rename" {
-  thumbs="$test_root/thumbs"
-  mkdir -p -- "$thumbs/Album"
-  printf x >"$thumbs/Album/a.jpg_me.webp"
-
-  run thumbnail_migrate_legacy_medium "$thumbs"
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'Checking for legacy _medium.webp files'* ]]
-  [[ "$output" == *'No legacy _medium.webp files to rename'* ]]
+  [ "${lines[0]}" = 'Checking for legacy _medium.webp files ...' ]
+  # root (.), A, A/Sub, Empty: one line each, tab-indented, nothing else
+  [ "${#lines[@]}" -eq 5 ]
+  for directory in . A A/Sub Empty; do
+    [[ "$output" == *$'\n\t'"$directory"* ]]
+  done
+  [[ "$output" != *Renamed* && "$output" != *'No legacy'* ]]
+  [ -f "$thumbs/A/one.jpg_me.webp" ]
+  [ -f "$thumbs/A/Sub/deep.jpg_me.webp" ]
 }
 
 @test "thumbnail_make writes every viewer variant and converts unsupported formats for XL" {
