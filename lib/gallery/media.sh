@@ -109,7 +109,7 @@ gallery_read_metadata() {
 
 gallery_render_media_item() {
   local source=$1 album_dir=$2 album_rel=$3 thumbs_dir=$4 metadata_dir=$5 item_index=$6
-  local relative metadata_path thumb_path medium_path web_video_path media_url medium_url thumb_url medium_relative
+  local relative metadata_path thumb_path me_path web_video_path media_url me_url thumb_url me_relative
   local web_video_url variant variant_url js_variant_url viewer_variants=''
   local -a variants=()
   local title exif_location exif_model exif_time exif_lens exif_focal_length exif_fstop exif_iso exif_exposure exif_flash viewer_url
@@ -117,12 +117,12 @@ gallery_render_media_item() {
 
   relative=${source#"$album_dir"}; relative=${relative#/}
   thumb_path="$thumbs_dir/$album_rel/$relative.webp"
-  medium_path="${thumb_path%.webp}_me.webp"
+  me_path="${thumb_path%.webp}_me.webp"
   gallery_url_escape_path_to media_url "$album_rel/$relative"
   media_url="/media/$media_url"
-  medium_relative="${relative}.webp"
-  medium_relative="${medium_relative%.webp}_me.webp"
-  gallery_thumbnail_url_to medium_url "$medium_path" "$album_rel/$medium_relative"
+  me_relative="${relative}.webp"
+  me_relative="${me_relative%.webp}_me.webp"
+  gallery_thumbnail_url_to me_url "$me_path" "$album_rel/$me_relative"
   gallery_thumbnail_url_to thumb_url "$thumb_path" "$album_rel/$relative.webp"
   title=${relative##*/}; title=${title%.*}
 
@@ -150,7 +150,7 @@ gallery_render_media_item() {
   # "src" is the _me image; NanoGallery swaps in srcXS/SM/LA/XL by viewport
   # width when present. XL is the original when browsers can show its format
   # (also what downloadURL serves), else the converted _xl.webp.
-  viewer_url=$medium_url
+  viewer_url=$me_url
   if ! photina_is_video "$source"; then
     photina_viewer_variants_to variants "$source"
     for variant in "${variants[@]}"; do
@@ -183,6 +183,9 @@ gallery_render_media_item() {
   gallery_js_escape_to js_flash "$exif_flash"; gallery_js_escape_to js_location "$exif_location"
   gallery_js_escape_to js_lens "$exif_lens"
 
+  # The templates are printf formats, so these arguments must follow their
+  # placeholder order: thumbnail, viewer src, extra srcXS/SM/LA/XL members,
+  # download URL, title, then the EXIF fields (see templates/gallery/item*.html).
   (( item_index > 0 )) && printf ','
   if [[ -n "$exif_lens" || -n "$exif_location" || -n "$exif_model" || -n "$exif_time" || \
           -n "$exif_focal_length" || -n "$exif_fstop" || -n "$exif_iso" || \

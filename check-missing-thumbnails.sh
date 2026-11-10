@@ -11,8 +11,7 @@ source "$script_dir/lib/thumbnails.sh"
 photina_load_config
 
 [[ $# -eq 0 ]] || die 'usage: check-missing-thumbnails.sh'
-[[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
-[[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
+photina_require_config ALBUMS_DIR THUMBNAILS_DIR
 command -v find >/dev/null || die 'find is required'
 command -v realpath >/dev/null || die 'realpath is required'
 
@@ -21,18 +20,9 @@ thumbs_dir=$(realpath -m -- "$THUMBNAILS_DIR")
 [[ -d "$albums_dir" ]] || die "albums directory does not exist: $albums_dir"
 
 missing=0
+# shellcheck disable=SC2034 # passed by name to functions that use namerefs
 declare -A expected_thumbnails=()
-while IFS= read -r -d '' album_path; do
-  album_name=${album_path#"$albums_dir"/}; album_name=${album_name%/}
-  media_file=$(mktemp)
-  if ! thumbnail_list_media "$album_path" >"$media_file"; then
-    rm -f -- "$media_file"
-    die "could not scan album: $album_name"
-  fi
-
-  thumbnail_add_expected_outputs "$album_path" "$album_name" "$thumbs_dir" "$media_file" expected_thumbnails
-  rm -f -- "$media_file"
-done < <(thumbnail_list_albums "$albums_dir")
+thumbnail_collect_expected "$albums_dir" "$thumbs_dir" expected_thumbnails
 
 echo 'Checking for missing thumbnails ...'
 for thumbnail in "${!expected_thumbnails[@]}"; do

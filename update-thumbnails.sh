@@ -10,13 +10,12 @@ photina_load_config
 
 [[ $# -eq 0 ]] || die 'usage: update-thumbnails.sh'
 
-[[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
-[[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
+photina_require_config ALBUMS_DIR THUMBNAILS_DIR
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 thumbnail_size=${THUMBNAIL_SIZE:-250}
 [[ "$thumbnail_size" =~ ^[1-9][0-9]*$ ]] || die 'THUMBNAIL_SIZE must be a positive integer'
-medium_size=${MEDIUM_SIZE:-1600}
-[[ "$medium_size" =~ ^[1-9][0-9]*$ ]] || die 'MEDIUM_SIZE must be a positive integer'
+me_size=${MEDIUM_SIZE:-1600}
+[[ "$me_size" =~ ^[1-9][0-9]*$ ]] || die 'MEDIUM_SIZE must be a positive integer'
 display_mode=${THUMBNAIL_DISPLAY_MODE:-cascading}
 [[ "$display_mode" =~ ^[A-Za-z]+$ ]] || die 'THUMBNAIL_DISPLAY_MODE must be a mode name'
 
@@ -77,4 +76,4 @@ source "$script_dir/lib/thumbnails.sh"
 photina_acquire_cache_lock "$thumbs_dir"
 check_utf8_support
 check_caddy_access
-update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$medium_size" "$display_mode"
+update_thumbnails "$albums_dir" "$thumbs_dir" "$metadata_dir" "$thumbnail_size" "$me_size" "$display_mode"

@@ -20,6 +20,15 @@ photina_load_config() {
   source "$config_file"
 }
 
+# Die unless every named configuration variable is set and non-empty. Call
+# after photina_load_config, which sets $config_file used in the message.
+photina_require_config() {
+  local name
+  for name in "$@"; do
+    [[ -n "${!name:-}" ]] || die "$name must be set in $config_file"
+  done
+}
+
 photina_core_count() {
   local cores=1
   if command -v nproc >/dev/null; then

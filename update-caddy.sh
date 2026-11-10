@@ -18,11 +18,7 @@ EOF
 GUEST_ALBUMS=()
 photina_load_config
 
-[[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
-[[ -n "${OUTPUT_DIR:-}" ]] || die "OUTPUT_DIR must be set in $config_file"
-[[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
-[[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD must be set in $config_file"
-[[ -n "${GUEST_PASSWORD:-}" ]] || die "GUEST_PASSWORD must be set in $config_file"
+photina_require_config ALBUMS_DIR OUTPUT_DIR THUMBNAILS_DIR ADMIN_PASSWORD GUEST_PASSWORD
 command -v realpath >/dev/null || die 'realpath is required'
 
 caddyfile=${CADDYFILE:-/etc/caddy/Caddyfile}

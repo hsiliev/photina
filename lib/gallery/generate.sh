@@ -31,12 +31,9 @@ caddy_host=${HOST:-localhost}
 caddy_port=${PORT:-443}
 [[ "$caddy_host" =~ ^[A-Za-z0-9.-]+$ ]] || die "HOST must be a hostname"
 [[ "$caddy_port" =~ ^[1-9][0-9]*$ && "$caddy_port" -le 65535 ]] || die "PORT must be between 1 and 65535"
-[[ -n "${ADMIN_PASSWORD:-}" ]] || die "ADMIN_PASSWORD must be set in $config_file"
-[[ -n "${GUEST_PASSWORD:-}" ]] || die "GUEST_PASSWORD must be set in $config_file"
+photina_require_config ADMIN_PASSWORD GUEST_PASSWORD
 
-[[ -n "${ALBUMS_DIR:-}" ]] || die "ALBUMS_DIR must be set in $config_file"
-[[ -n "${OUTPUT_DIR:-}" ]] || die "OUTPUT_DIR must be set in $config_file"
-[[ -n "${THUMBNAILS_DIR:-}" ]] || die "THUMBNAILS_DIR must be set in $config_file"
+photina_require_config ALBUMS_DIR OUTPUT_DIR THUMBNAILS_DIR
 metadata_dir=$(realpath -m -- "${METADATA_DIR:-/mnt/gallery/metadata}")
 
 albums_dir=$(realpath -m -- "$ALBUMS_DIR")
