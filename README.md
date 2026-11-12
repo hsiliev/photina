@@ -89,6 +89,16 @@ WebP, AVIF, BMP); otherwise (TIFF, HEIC, ...) a full-size `_xl.webp` is
 generated. Downloads always give the original. Videos only get a thumbnail
 and a `_me.webp` frame. Existing photos get the new sizes on the next update.
 
+To see how much disk space each kind of generated image uses, run:
+
+```bash
+./du-thumbnails.sh
+```
+
+It prints the file count and disk usage for the grid thumbnails, each viewer
+size (`xs`, `sm`, `me`, `la`, `xl`), and web videos, plus a total. Add
+`--list` to list every file with its size first.
+
 ## Update the gallery
 
 When media is added or removed, run both gallery generators:

@@ -43,6 +43,22 @@ the project notes in [AGENTS.md](../AGENTS.md); keep both in sync.
 - `./check-missing-thumbnails.sh` independently checks and lists missing
   thumbnail, viewer-image, and web-video outputs. It exits with status 1 if any are
   missing; it does not modify the thumbnail tree.
+- `./du-thumbnails.sh [-l|--list]` is read-only and reports the disk usage of
+  `THUMBNAILS_DIR` grouped by output kind: `thumbnail` (plain `<name>.webp`),
+  `xs`, `sm`, `me`, `la`, `xl`, `video` (`.web.mp4`), and `other` (shown only
+  when present, e.g. temporary files from an interrupted update), plus a
+  total. Grouping is by file name (awk `group_of`, same suffix rules as
+  `thumbnail_original_relative`). It is one `find -printf` pass piped through
+  `tr` (newlines in names become spaces, NUL becomes newline, so mawk works)
+  into one `awk` program that does all counting and formatting; a bash loop
+  per file was about 30x slower (18 s vs 0.5 s for 150,000 files). Only inodes
+  with more than one link are remembered, so memory stays small. Usage is
+  allocated blocks like `du`, formatted `du -h` style by the awk `human`
+  function; hard-linked files (`eliminate-duplicates.sh`) are counted once in
+  the usage but each path in the file count, with a note.
+  It prints "Calculating disk usage of thumbnails in ..." first and nothing more
+  until the scan ends, then the table. `--list` also prints every file with its group and
+  size while scanning; it does not modify anything and takes no lock.
 - `./cleanup-thumbnails-and-metadata.sh` removes thumbnail files and empty thumbnail
   directories that no longer correspond to albums or media files. It does not
   modify album content, removes redundant metadata files and empty metadata

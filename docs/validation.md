@@ -30,7 +30,7 @@ shallow multi-level fragments, manifest checksum invalidation, template
 JavaScript validation, missing-thumbnail checks, direct-directory comparison,
 selected and all cache deletion, admin and guest gallery deletion, guest parent
 preview resolution with restricted permissions, viewer-variant expected outputs,
-per-breakpoint gallery item sources, real
+per-breakpoint gallery item sources, `du-thumbnails.sh` grouping, real
 `thumbnail_make` output widths, duplicate detection and
 elimination, EXIF year splitting, and `fix-names.sh` (trailing space/dot trimming,
 forbidden/mangled names, long-name shortening, empty-file deletion).

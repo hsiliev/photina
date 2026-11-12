@@ -29,6 +29,21 @@ photina_require_config() {
   done
 }
 
+# awk source for human(bytes): du -h style (1024-based K/M/G/T/P, one decimal).
+# Prepend it to an awk program: awk "$photina_awk_human"'BEGIN { ... }'.
+# shellcheck disable=SC2016 # awk code, not shell
+photina_awk_human='
+function human(bytes,    whole, tenths, unit) {
+  bytes += 0; whole = bytes; tenths = 0; unit = 0   # "+ 0": unset values are ""
+  while (whole >= 1024 && unit < 5) {
+    tenths = int((whole % 1024) * 10 / 1024)
+    whole = int(whole / 1024)
+    unit++
+  }
+  return unit == 0 ? bytes "B" : whole "." tenths substr("BKMGTP", unit + 1, 1)
+}
+'
+
 photina_core_count() {
   local cores=1
   if command -v nproc >/dev/null; then

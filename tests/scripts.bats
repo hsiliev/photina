@@ -423,6 +423,50 @@ mkfile() {
   [ "$(thumbnail_original_relative A/pic.webp_me.webp)" = 'A/pic.webp' ]
 }
 
+@test "du-thumbnails groups disk usage by thumbnail size and counts hard links once" {
+  thumbs="$test_root/thumbs"; config="$test_root/photina.conf"
+  mkdir -p -- "$thumbs/Album One" "$thumbs/Album Two"
+  for suffix in '' _xs _sm _me _la; do
+    head -c 8192 /dev/zero >"$thumbs/Album One/a.jpg$suffix.webp"
+  done
+  head -c 65536 /dev/zero >"$thumbs/Album One/scan.tiff_xl.webp"
+  head -c 8192 /dev/zero >"$thumbs/Album One/clip.avi.web.mp4"
+  ln "$thumbs/Album One/a.jpg_la.webp" "$thumbs/Album Two/copy.jpg_la.webp"
+  printf "ALBUMS_DIR='%s'\nTHUMBNAILS_DIR='%s'\n" "$test_root/albums" "$thumbs" >"$config"
+  chmod 600 -- "$config"
+
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/du-thumbnails.sh"
+
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "Calculating disk usage of thumbnails in $thumbs ..." ]
+  [[ "$output" != *'Disk usage of thumbnails in'* ]]
+  [[ "$output" == *$'\n\nGROUP '* ]]
+  row() { grep -E "^$1 " <<<"$output" | tr -s ' '; }
+  [ "$(row thumbnail | cut -d' ' -f2)" -eq 1 ]
+  [ "$(row xs | cut -d' ' -f2)" -eq 1 ]
+  [ "$(row la | cut -d' ' -f2)" -eq 2 ]
+  [ "$(row xl | cut -d' ' -f2)" -eq 1 ]
+  [ "$(row video | cut -d' ' -f2)" -eq 1 ]
+  [ "$(row total | cut -d' ' -f2)" -eq 8 ]
+  # The hard link adds a file but no disk usage: la equals a single 8 KiB file.
+  [ "$(row la | cut -d' ' -f3)" = "$(row me | cut -d' ' -f3)" ]
+  # Groups without files show 0B, not an empty size.
+  [[ "$(row xl)" == *' 1 '* ]]
+  [[ "$output" != *$'\n'"video "*' B'* ]]
+  # No leftover temp files, so no "other" row.
+  [ -z "$(row other)" ]
+  [[ "$output" == *'(1 hard-linked file(s) counted once'* ]]
+
+  printf x >"$thumbs/Album Two/x.jpg_me.generating.webp"
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/du-thumbnails.sh" --list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Album Two/copy.jpg_la.webp'* ]]
+  [ "$(grep -E '^other ' <<<"$output" | wc -l)" -eq 2 ] # list line + summary row
+
+  run env PHOTINA_CONFIG="$config" "$PROJECT_ROOT/du-thumbnails.sh" --bogus
+  [ "$status" -eq 2 ]
+}
+
 @test "thumbnail_make writes every viewer variant and converts unsupported formats for XL" {
   command -v convert >/dev/null || skip "convert is required"
   convert -list format | grep -qi '^ *WEBP' || skip "ImageMagick WebP support is required"
